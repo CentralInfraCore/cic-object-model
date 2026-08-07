@@ -310,19 +310,6 @@ compiler_settings:
   canonical_source_file: schemas/index.yaml
   source_dir: ./
   vault_key_name: cic-my-sign-key
-abi:
-  name: wasm-module-template
-  version: "1.0.0"
-  envelopeVersion: 1
-  exports:
-    - allocate
-    - deallocate
-    - Call
-  operations:
-    - init
-    - process
-    - get
-    - notify
 """
 
 INVALID_PROJECT_YAML_INSTANCE = """
@@ -346,10 +333,16 @@ class TestValidateFinalProjectYamlRealSchema:
     def real_schema_manager(
         self, mock_config, mock_git_service, mock_vault_service, mocker, tmp_path
     ):
-        # Copy the real project.schema.yaml (and the abi.schema.yaml it
-        # $ref's) into a scratch project root so the test exercises the
-        # actual schemas shipped with the repository, without mutating them.
-        for name in ("project.schema.yaml", "abi.schema.yaml"):
+        # Copy the real project.schema.yaml into a scratch project root so the
+        # test exercises the actual schema shipped with the repository, without
+        # mutating it.
+        #
+        # The wasm template also copied abi.schema.yaml here, because its
+        # project.schema.yaml $ref'd it. This repository ships no WASM guest and
+        # therefore no ABI: abi.schema.yaml was dropped at bootstrap, and
+        # project.schema.yaml carries no `abi` block. The inherited test kept
+        # both references and failed on the missing file.
+        for name in ("project.schema.yaml",):
             (tmp_path / name).write_text((PROJECT_ROOT / name).read_text())
 
         logger = mocker.MagicMock(spec=logging.Logger)
