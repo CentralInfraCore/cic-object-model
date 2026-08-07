@@ -22,3 +22,15 @@ file-rules:
 
 ignore: |
   /p_venv/
+  # KB companion YAMLs sit beside every Python source file (module: + objects:)
+  # and are machine-generated. They are data, not hand-authored config, and the
+  # generator emits sequences at column 0, which yamllint's default indentation
+  # rule rejects. Linting generated output means either reformatting it by hand
+  # after every regeneration, or changing a rule that applies to files people do
+  # write. CIC-Relay settled this the same way, for the same reason.
+  #
+  # Deliberately NOT ignored here: /spec/. Those schemas are the normative
+  # artefact of this repository and are hand-authored — CIC-Relay's blanket
+  # `*.schema.yaml` ignore would have swallowed them.
+  /tools/
+  /tests/

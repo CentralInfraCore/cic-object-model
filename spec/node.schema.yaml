@@ -36,14 +36,14 @@ properties:
   # It is never authored (INV-007) and it is terminal (INV-004) — the fixed
   # point that makes the recursion of INV-003 well-founded. See SPEC 6.2 and
   # docs/decision-delta.md.
-  shape:      {$ref: "node.schema.yaml"}
-  role:       {$ref: "node.schema.yaml"}
-  behavior:   {$ref: "node.schema.yaml"}
-  contract:   {$ref: "node.schema.yaml"}
-  address:    {$ref: "node.schema.yaml"}
-  identity:   {$ref: "node.schema.yaml"}
-  event:      {$ref: "node.schema.yaml"}
-  access:     {$ref: "node.schema.yaml"}
+  shape: {$ref: "node.schema.yaml"}
+  role: {$ref: "node.schema.yaml"}
+  behavior: {$ref: "node.schema.yaml"}
+  contract: {$ref: "node.schema.yaml"}
+  address: {$ref: "node.schema.yaml"}
+  identity: {$ref: "node.schema.yaml"}
+  event: {$ref: "node.schema.yaml"}
+  access: {$ref: "node.schema.yaml"}
 
 # INV-006 / INV-012: documentation and `default` are schema-side declarations,
 # not node members. additionalProperties: false already rejects them; these are
