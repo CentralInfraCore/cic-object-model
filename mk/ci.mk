@@ -137,3 +137,22 @@ verify.adversarial:
 	@echo "--- Adversarial: can the boundary be forged, crashed or exhausted? ---"
 	@docker compose exec -T builder sh -c 'cd /app/go && \
 		go test ./module/ -run "TestForgery|TestNil|TestResource" -v -count=1'
+
+# ---------------------------------------------------------------------------
+# Golden expectations
+# ---------------------------------------------------------------------------
+.PHONY: golden.update
+
+# Rewrites the conformance expectations from what the implementation produces,
+# for when a deliberate change to the canonical form touches many at once.
+#
+# It does not decide whether the change is correct. It writes files; `git diff`
+# is the review, and it is the only thing that makes the new expectations real.
+# The run fails on purpose afterwards — a green -update would be a result nobody
+# checked — and it refuses to run at all when CI is set.
+golden.update:
+	@echo "--- Rewriting conformance expectations from actual output ---"
+	@docker compose exec -T -e CI= builder sh -c 'cd /app/go && go test ./conformance/ -count=1 -update' || true
+	@echo ""
+	@echo "Now read the diff. Nothing is verified until you do:"
+	@git diff --stat -- conformance/ || true
