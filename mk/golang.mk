@@ -150,15 +150,27 @@ golang.coverage-html: ## Run tests with coverage (HTML)
 	$(call GO_EXEC, mkdir -p $(BUILD_DIR) \
 		&& go tool cover -html=$(COVERAGE_FILE) -o $(COVERAGE_HTML))
 
-# A RATCHET, not a target. 56 is what the tree measures today; the gate exists
-# so it cannot silently fall. Raise it when coverage rises — never lower it to
-# make a change pass. If this trips, the answer is a test, not a smaller number.
+# A RATCHET, not a target. Raise it when coverage rises — never lower it to make
+# a change pass. If this trips, the answer is a test, not a smaller number.
 #
-# Where the missing 44% is: ValidateCanonicalDocument, LoadSchema, and the error
-# branches of Materialize have no direct tests. The vectors exercise them
-# end-to-end but never call them as an API, which is the same blind spot the
-# reader API had before objectmodel/api_test.go.
-COVERAGE_MIN ?= 56
+# 56 -> 83 when objectmodel/surface_test.go and cmd/.../run_test.go landed.
+# EVERY exported symbol is now exercised; measured, not assumed:
+#
+#   go tool cover -func=... | awk '$3 == "0.0%"'  ->  main, sealedByMaterializer
+#
+# Those two are the justified exceptions and neither can be closed:
+#
+#   main                  calls os.Exit, so it cannot run in-process. The
+#                         subprocess golden test drives it; coverage cannot see
+#                         inside a child process.
+#   sealedByMaterializer  the unexported marker of INV-032. It exists to be
+#                         un-callable from outside; calling it from a test would
+#                         measure nothing.
+#
+# The rest of the gap to 100 is internal paths — nodeFromDefault, asMap,
+# firstLeafPath, encodeCanonical — reachable only from inputs the corpus does
+# not contain. Those are worth covering next, and are not an API concern.
+COVERAGE_MIN ?= 83
 
 golang.coverage-threshold: golang.coverage ## Fail if coverage < $(COVERAGE_MIN)%
 	mkdir -p $(BUILD_DIR) && docker compose exec -T builder sh -c 'cd /app/$(GO_MODULE_DIR) && \
