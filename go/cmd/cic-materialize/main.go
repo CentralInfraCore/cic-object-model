@@ -15,6 +15,8 @@ import (
 	"fmt"
 	"os"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/CentralInfraCore/cic-object-model/go/module"
 	"github.com/CentralInfraCore/cic-object-model/go/objectmodel"
 )
@@ -27,15 +29,54 @@ func main() {
 	flag.Parse()
 
 	if err := run(*schemaPath, *inputPath, *validatePath, *deliver); err != nil {
-		var me *objectmodel.Error
-		if errors.As(err, &me) {
-			fmt.Fprintf(os.Stderr, "error:\n  code: %s\n  invariant: %s\n  stage: %s\n  path: %s\n  detail: %s\n",
-				me.Code, me.Invariant, me.Stage, me.Path, me.Detail)
-			os.Exit(1)
-		}
-		fmt.Fprintln(os.Stderr, "error:", err)
+		emitError(err)
 		os.Exit(1)
 	}
+}
+
+// errorEnvelope is the machine-readable shape of a rejection: the same four
+// fields conformance/*/expected-error.yaml asserts on, plus prose for a human.
+// A second implementation reproduces this, so it is a contract and not a log
+// line.
+type errorEnvelope struct {
+	Error struct {
+		Code      string `yaml:"code"`
+		Invariant string `yaml:"invariant"`
+		Stage     string `yaml:"stage"`
+		Path      string `yaml:"path"`
+		Detail    string `yaml:"detail"`
+	} `yaml:"error"`
+}
+
+// emitError writes the envelope as YAML through the marshaller rather than
+// with a format string.
+//
+// The format-string version produced invalid YAML the moment a detail began
+// with a backtick — "detail: `priority` is not a member..." — because YAML
+// cannot start a plain scalar that way. The envelope claimed to be
+// machine-readable and was not, for a whole class of messages. Found by
+// cli_golden_test.go, which is the reason to pin a CLI contract at all.
+func emitError(err error) {
+	var env errorEnvelope
+	var me *objectmodel.Error
+	if errors.As(err, &me) {
+		env.Error.Code = me.Code
+		env.Error.Invariant = me.Invariant
+		env.Error.Stage = string(me.Stage)
+		env.Error.Path = me.Path
+		env.Error.Detail = me.Detail
+	} else {
+		// Not a pipeline rejection — a missing file, a usage mistake. It still
+		// arrives in the same envelope so a caller has one shape to parse.
+		env.Error.Code = "E_CLI"
+		env.Error.Detail = err.Error()
+	}
+	out, merr := yaml.Marshal(env)
+	if merr != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		return
+	}
+	os.Stderr.Write(out)
 }
 
 func run(schemaPath, inputPath, validatePath string, deliver bool) error {

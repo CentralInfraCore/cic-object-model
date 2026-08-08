@@ -119,7 +119,7 @@ func primitiveNode(path string, payload any, org Origin) *Node {
 		for _, k := range v.keys {
 			child, _ := v.get(k)
 			n.order = append(n.order, k)
-			n.entries[k] = primitiveNode(path+"."+k, child, org)
+			n.entries[k] = primitiveNode(path+".values."+k, child, org)
 		}
 		return n
 	case map[string]any:
@@ -128,8 +128,18 @@ func primitiveNode(path string, payload any, org Origin) *Node {
 			om.set(k, v[k])
 		}
 		return primitiveNode(path, om, org)
-	default:
+	case []any:
+		// A list inside a primitive payload declares no element position, so it
+		// stays payload (INV-035). It is raw rather than scalar: Scalar() must
+		// say no, and Len()/At() must not offer entries that are not nodes.
 		return &Node{path: path, kind: kindRaw, raw: payload, origin: org}
+	default:
+		// A scalar leaf is a scalar, and Scalar() must return it. Building these
+		// as kindRaw made every leaf inside a primitive payload unreadable
+		// through the API while being perfectly present in the canonical YAML —
+		// caught by objectmodel/api_test.go, not by any vector, because the
+		// vectors compare serialized output and never call an accessor.
+		return &Node{path: path, kind: kindScalar, scalar: payload, origin: org}
 	}
 }
 

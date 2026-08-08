@@ -27,7 +27,10 @@ being evidence, and the reasoning is what makes the fix reviewable.
 | | Count | Which |
 |---|---|---|
 | **Fixed in 0.2** | 9 | SD-003, SD-004, SD-005, SD-009, SD-012, SD-013, SD-014, SD-017, SD-018 |
-| **Open** | 9 | SD-001, SD-002, SD-006, SD-007, SD-008, SD-010, SD-011, SD-015, SD-016 |
+| **Open** | 10 | SD-001, SD-002, SD-006, SD-007, SD-008, SD-010, SD-011, SD-015, SD-016, **SD-019** |
+
+SD-019 arrived after 0.2 shipped, from attacking INV-032 rather than asserting
+it. The implementation compensates; the specification's claim is still false.
 
 All six blocking defects are fixed. The nine that remain are five
 *underspecified*, two *editorial*, one *divergent* (SD-002) and one *editorial*
@@ -742,3 +745,71 @@ mistakes the count for the property.
 implementations this repository ships. INV-038 does that, and adds the half the
 0.1 sentence left implicit: a normative change must not be split from its
 vectors across releases either.
+
+---
+
+## SD-019 — INV-032's type-level guarantee is defeatable by interface embedding
+
+| | |
+|---|---|
+| **Where** | `SPEC.md` §9 (INV-032) |
+| **Severity** | **blocking** (security) |
+| **Found by** | `go/module/adversarial_test.go`, by attacking the claim rather than asserting it |
+
+INV-032: *"the module input type is constructible only by the materializer."*
+The Go implementation enforces this with an unexported marker method on
+`CanonicalObject`, on the reasoning that no other package can implement an
+interface it cannot name a method of.
+
+**Go promotes an embedded interface's method set, including unexported
+methods.** So this compiles, in any package:
+
+```go
+type forged struct {
+	objectmodel.CanonicalObject   // embedded, nil
+}
+var obj objectmodel.CanonicalObject = forged{}   // satisfies the type
+```
+
+Three forgeries, each defeating one more defence:
+
+| Forgery | Result before the fix |
+|---|---|
+| empty embedding | satisfies the type; **panics** the boundary on the first method call |
+| every method overridden, `Root()` nil | rejected — by the nil-Root check, not by the type |
+| **real node tree from a real materialization, attacker-chosen `CanonicalYAML()`** | **crossed the boundary** |
+
+The third is the finding. Every runtime check passed: non-nil object, non-nil
+root, truthful-looking version. The bytes a consumer would read violated INV-017
+(an origin holding both `yaml` and `schema`) and no materializer ever produced
+them.
+
+**Why it cannot be fixed as stated.** Interface embedding is a language
+property. No arrangement of unexported methods, sealed interfaces or build tags
+closes it: any package that can name the type can embed it. An unexported
+*struct* type returned as a concrete type would close it, but then the boundary
+could not be an interface at all, and modules could not be written against it.
+
+**What was done instead (go/module/module.go).** The boundary stops trusting the
+type and re-establishes the property that matters — that what a module READS has
+been validated:
+
+- it re-runs `ValidateCanonicalDocument` on the bytes, one parse per delivery
+- it recovers from panics, because a crash reachable from a module author is a
+  denial of service and worse than a rejection
+
+That closes all three forgeries. It does not make INV-032 true.
+
+**Suggestion.** Restate INV-032 to say what is achievable and what the boundary
+must therefore do. Something of the shape: the module input type MUST NOT be
+constructible by ordinary means, AND a boundary MUST NOT rely on the type alone
+— it MUST validate what it is handed and MUST NOT be crashable by it. An
+invariant that a conforming implementation cannot satisfy is worse than a weaker
+one it can, because the first teaches implementers that invariants are
+aspirational.
+
+Note for the Rust implementation: a private-field newtype in Rust genuinely is
+unconstructible outside its module, so Rust can satisfy the strong form where Go
+cannot. That asymmetry belongs in the specification rather than in a surprise
+during review — the two implementations will not be equally strong here, and
+`docs/spec-vector-map.md` already hints at it without saying so.

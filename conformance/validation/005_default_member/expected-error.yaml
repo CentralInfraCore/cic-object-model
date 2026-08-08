@@ -3,7 +3,7 @@ error:
   code: E_DEFAULT_MEMBER_ON_NODE
   invariant: INV-012
   stage: final-validation
-  path: $.mtu.default
+  path: $.values.mtu.default
   detail: >-
     Value provenance is expressed through origin; a `default` member is not
     part of the canonical node.

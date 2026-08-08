@@ -49,12 +49,13 @@ const (
 	CodeSchemaReservedChildValues   = "E_SCHEMA_RESERVED_CHILD_VALUES"
 	CodeSealedMissingTemplateOrPath = "E_SEALED_MISSING_TEMPLATE_OR_PATH"
 	CodeUnknownPrimitive            = "E_UNKNOWN_PRIMITIVE"
-	CodeCyclicPrimitiveDeclaration  = "E_CYCLIC_PRIMITIVE_DECLARATION"
-	CodeOriginYAMLSchemaConflict    = "E_ORIGIN_YAML_SCHEMA_CONFLICT"
-	CodeOriginEmpty                 = "E_ORIGIN_EMPTY"
-	CodeOriginNotTerminal           = "E_ORIGIN_NOT_TERMINAL"
-	CodeDocumentationOnNode         = "E_DOCUMENTATION_ON_NODE"
-	CodeDefaultMemberOnNode         = "E_DEFAULT_MEMBER_ON_NODE"
+	// Retired in 0.2: name-acyclicity is no longer a rule (SD-005). Kept out
+	// of the code entirely rather than left as an unreachable constant.
+	CodeOriginYAMLSchemaConflict = "E_ORIGIN_YAML_SCHEMA_CONFLICT"
+	CodeOriginEmpty              = "E_ORIGIN_EMPTY"
+	CodeOriginNotTerminal        = "E_ORIGIN_NOT_TERMINAL"
+	CodeDocumentationOnNode      = "E_DOCUMENTATION_ON_NODE"
+	CodeDefaultMemberOnNode      = "E_DEFAULT_MEMBER_ON_NODE"
 	// CodeUnknownMember is INV-021 at final validation: a member the node
 	// grammar has no room for. `cic` reaches it in 0.2, because the model
 	// version belongs to the hand-off frame (INV-033), not the object.

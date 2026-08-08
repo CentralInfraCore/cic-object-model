@@ -26,8 +26,10 @@ COMMIT   ?= $(shell git rev-parse --short HEAD)
 BUILD_DIR ?= ./output/$(COMMIT)
 
 # ---- Coverage outputs ----
-COVERAGE_FILE ?= /output/$(COMMIT)/coverage.out
-COVERAGE_HTML ?= /output/$(COMMIT)/coverage.html
+# /app is where docker-compose mounts the repo; a bare /output does not
+# exist in the container, which is why this target had never run.
+COVERAGE_FILE ?= /app/output/$(COMMIT)/coverage.out
+COVERAGE_HTML ?= /app/output/$(COMMIT)/coverage.html
 
 GOFLAGS  ?= -mod=readonly -trimpath
 
@@ -148,7 +150,28 @@ golang.coverage-html: ## Run tests with coverage (HTML)
 	$(call GO_EXEC, mkdir -p $(BUILD_DIR) \
 		&& go tool cover -html=$(COVERAGE_FILE) -o $(COVERAGE_HTML))
 
-COVERAGE_MIN ?= 85
+# A RATCHET, not a target. Raise it when coverage rises — never lower it to make
+# a change pass. If this trips, the answer is a test, not a smaller number.
+#
+# 56 -> 83 with surface_test.go and run_test.go; 83 -> 90 with branches_test.go,
+# which reached the rejection paths the 26 vectors were never meant to cover.
+# EVERY exported symbol is now exercised; measured, not assumed:
+#
+#   go tool cover -func=... | awk '$3 == "0.0%"'  ->  main, sealedByMaterializer
+#
+# Those two are the justified exceptions and neither can be closed:
+#
+#   main                  calls os.Exit, so it cannot run in-process. The
+#                         subprocess golden test drives it; coverage cannot see
+#                         inside a child process.
+#   sealedByMaterializer  the unexported marker of INV-032. It exists to be
+#                         un-callable from outside; calling it from a test would
+#                         measure nothing.
+#
+# The rest of the gap to 100 is internal paths — nodeFromDefault, asMap,
+# firstLeafPath, encodeCanonical — reachable only from inputs the corpus does
+# not contain. Those are worth covering next, and are not an API concern.
+COVERAGE_MIN ?= 90
 
 golang.coverage-threshold: golang.coverage ## Fail if coverage < $(COVERAGE_MIN)%
 	mkdir -p $(BUILD_DIR) && docker compose exec -T builder sh -c 'cd /app/$(GO_MODULE_DIR) && \

@@ -88,15 +88,20 @@ and the rest of §6 — are **not metadata fields attached to the node**. Each i
 itself a CIC node, with its own `values`, its own `origin`, and potentially its
 own primitives.
 
-This is what makes `network.values.mtu.access.read` a first-class, addressable
-object rather than a path into a YAML blob. It can be hashed, diffed, and
-referenced from evidence — because it is a node like any other.
+This is what makes `$.values.network.values.mtu.access.values.read` a
+first-class, addressable object rather than a path into a YAML blob. It can be
+hashed, diffed, and referenced from evidence — because it is a node like any
+other.
+
+The address is written out in full because §2.5 makes it exact. 0.1 wrote this
+example as `network.values.mtu.access.read`, which is not an address any
+implementation emits or resolves — the form was prose, and prose is where the
+`cic` construct also lived (SD-017).
 
 **The recursion does not stop at the primitive.** `access` being a node is not
-enough for the claim above: `access.read` must be a node too, and so must
-everything the schema declares beneath it. Otherwise
-`network.values.mtu.access.read` is exactly the path into a YAML blob that this
-section says it is not. 0.1 stopped one level early and the corpus recorded
+enough for the claim above: the `read` inside its payload must be a node too,
+and so must everything the schema declares beneath it. Otherwise that address is
+exactly the path into a YAML blob that this section says it is not. 0.1 stopped one level early and the corpus recorded
 primitive payloads as raw mappings; see `docs/spec-defects.md` SD-003. INV-027
 (§7) is what carries this all the way down, and it applies inside primitive
 payloads exactly as it applies inside `values`.
@@ -171,6 +176,52 @@ materialized node would duplicate schema knowledge into every object.
 
 **INV-006** — A canonical CIC node MUST NOT carry a documentation member.
 Documentation MUST be obtained from the schema.
+
+
+### 2.5 Addressing
+
+The model's central claim is that every declared position is addressable. That
+claim needs an address grammar, and 0.1 had none: §2.2 wrote addresses one way in
+prose, implementations emitted another, and nothing said which was right.
+
+An address names one node, and one node has exactly one address.
+
+```
+address := "$" step*
+step    := "." member          a member of the node
+         | ".values" "[" i "]" the i-th entry of a list payload
+
+member  := "values"            step into the payload
+         | "origin"            the node's origin (terminal, INV-004)
+         | <primitive name>    a materialized primitive (§6.1)
+         | <payload child>     only directly after a `values` step
+```
+
+**INV-040** — Every node in a canonical object MUST have exactly one address
+under this grammar, and an implementation that reports an address MUST report
+that one. An address that resolves to a node MUST resolve to the same node in
+every implementation.
+
+Reading it: `values` is the step into the payload, and it is never optional.
+Anything else on a node is a member of the node itself.
+
+```
+$.values.mtu                          the root payload's `mtu` child
+$.values.mtu.access                   `mtu`'s access PRIMITIVE
+$.values.mtu.access.values.read       the access payload's `read` child
+$.values.addresses.values[0]          the first entry of a list payload
+$.values.config.values.values         a payload child literally named `values`
+```
+
+The last line is why the step is mandatory. A schema may not declare a child
+named `values` (INV-010), but an *opaque* payload may contain one, and a
+grammar where the step is optional cannot tell the two apart. It is also what
+separates a primitive from a payload child that shares its name: `…mtu.access`
+is the primitive, `…mtu.values.access` is a child called `access`.
+
+The verbosity is the price of `$.values.values.values.mtu` and `$.values.mtu`
+not being two names for one node. In a model whose purpose is that evidence can
+reference a position, an address that is not unique is worse than a long one.
 
 ---
 
@@ -944,6 +995,7 @@ rule was actually protecting.
 | INV-037 | `inherit` is recorded verbatim, never resolved | 6.4 |
 | INV-038 | A normative change ships with its vectors and every implementation | 11.1 |
 | INV-039 | Schema-less final validation is key-directed and weaker | 4.3 |
+| INV-040 | Every node has exactly one address | 2.5 |
 
 ---
 

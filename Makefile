@@ -9,10 +9,11 @@
 # ---- Includes ----
 include mk/infra.mk
 include mk/golang.mk
+include mk/ci.mk
 -include mk/rust.mk
 
 # ---- Phony ----
-.PHONY: all help validate release test up down shell build fmt lint check typecheck repo.init manifest-verify manifest-update docs.link-check conformance
+.PHONY: verify verify.fuzz verify.mutate all help validate release test up down shell build fmt lint check typecheck repo.init manifest-verify manifest-update docs.link-check conformance
 
 # Default to showing help
 all: help

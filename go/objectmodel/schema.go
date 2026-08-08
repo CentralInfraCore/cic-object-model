@@ -72,7 +72,14 @@ type Schema struct {
 	templates map[string]map[string]*templateEntry
 }
 
-// LoadSchema parses and validates a schema. The checks it runs — INV-010,
+// LoadSchema parses and validates a schema on its own, for tooling that wants
+// to reject a bad schema before there is any input to materialize.
+//
+// Stated limit: *Schema carries no accessors and cannot be handed back to
+// Materialize, which takes schema bytes and calls this itself. Today the useful
+// half of the result is the error.
+//
+// The checks it runs — INV-010,
 // INV-015 and INV-005 — are the three the corpus places at stage
 // `schema-load`, a stage SPEC §8 does not list (docs/spec-defects.md SD-002).
 func LoadSchema(data []byte) (*Schema, error) {
@@ -170,7 +177,7 @@ func parseSchemaNode(raw any, path string) (*schemaNode, error) {
 					path+".children", "children must be a mapping")
 			}
 			for _, cn := range sortedKeys(cm) {
-				child, err := parseSchemaNode(cm[cn], path+"."+cn)
+				child, err := parseSchemaNode(cm[cn], path+".values."+cn)
 				if err != nil {
 					return nil, err
 				}
@@ -187,7 +194,7 @@ func parseSchemaNode(raw any, path string) (*schemaNode, error) {
 			sm, ok := asMap(v)
 			if !ok {
 				return nil, newError(CodeSealedMissingTemplateOrPath, "INV-015", StageSchemaLoad,
-					path+".sealed_from", "sealed_from must be a mapping carrying template and path")
+					path+".values.sealed_from", "sealed_from must be a mapping carrying template and path")
 			}
 			ref := &sealedRef{}
 			if t, ok := sm["template"]; ok && t != nil {
@@ -235,30 +242,42 @@ func checkSchemaNode(n *schemaNode, path string) error {
 			missing = "path"
 		}
 		return newError(CodeSealedMissingTemplateOrPath, "INV-015", StageSchemaLoad,
-			path+".sealed_from",
+			path+".values.sealed_from",
 			fmt.Sprintf("sealed_from does not declare `%s`; template identity alone is not provenance", missing))
 	}
 
 	// INV-010 — a schema must not declare a child named `values` at a
 	// structured object position. This is what makes INV-009 total.
 	if n.shape == shapeObject {
-		if _, ok := n.children["values"]; ok {
-			return newError(CodeSchemaReservedChildValues, "INV-010", StageSchemaLoad,
-				path+".values",
-				"a schema must not declare a child property named `values` at a structured object position; it would collide with the envelope discriminator")
+		// INV-010 reserves two names at declaration time. `origin` joined in
+		// 0.2 to close the INV-007/INV-011 contradiction (docs/spec-defects.md
+		// SD-014) — the specification was updated and this check was not, so
+		// for one revision the text forbade something the implementation
+		// allowed. Found by objectmodel/branches_test.go.
+		for _, reserved := range []string{"values", "origin"} {
+			if _, ok := n.children[reserved]; ok {
+				return newError(CodeSchemaReservedChildValues, "INV-010", StageSchemaLoad,
+					path+".values."+reserved,
+					fmt.Sprintf("a schema must not declare a child property named `%s` at a structured "+
+						"object position; `values` would collide with the envelope discriminator and "+
+						"`origin` with the authoring prohibition of INV-007", reserved))
+			}
 		}
 	}
 
-	// INV-005 — the primitive declaration graph must be acyclic.
-	for _, name := range n.primOrder {
-		next := []string{name}
-		if err := checkPrimitiveCycle(n.prims[name], path+"."+name, next); err != nil {
-			return err
-		}
-	}
+	// INV-005 in 0.2 terminates on schema finiteness, not on name-acyclicity.
+	// A repeated primitive name is legitimate nesting — under INV-035 a
+	// primitive's payload materializes like any other structure, so
+	// `mtu.access.read.contract.rules.guard.access` is an ordinary finite
+	// schema (SPEC §2.3, docs/spec-defects.md SD-005). The 0.1 check that
+	// rejected it is gone, along with the vector that required it.
+	//
+	// Nothing replaces it: a schema this language can express is finite by
+	// construction. When §8.2 lands and references exist, a real cycle check
+	// belongs with that feature.
 
 	for _, c := range n.childOrder {
-		if err := checkSchemaNode(n.children[c], path+"."+c); err != nil {
+		if err := checkSchemaNode(n.children[c], path+".values."+c); err != nil {
 			return err
 		}
 	}
@@ -279,33 +298,6 @@ func checkSchemaNode(n *schemaNode, path string) error {
 // fail to terminate. invalid/008_cyclic_primitive_declaration therefore tests
 // a different (stronger) property than INV-005 states: acyclicity of the
 // primitive-*name* graph. This implementation enforces the property the
-// vector requires and records the discrepancy as docs/spec-defects.md SD-005.
-func checkPrimitiveCycle(v any, path string, stack []string) error {
-	m, ok := asMap(v)
-	if !ok {
-		return nil
-	}
-	for _, k := range sortedKeys(m) {
-		kp := path + "." + k
-		if isPrimitiveName(k) {
-			if slices.Contains(stack, k) {
-				return newError(CodeCyclicPrimitiveDeclaration, "INV-005", StageSchemaLoad, kp,
-					"the primitive declaration graph must be acyclic: a primitive must not directly or transitively re-declare the node it hangs from")
-			}
-			next := make([]string, len(stack)+1)
-			copy(next, stack)
-			next[len(stack)] = k
-			if err := checkPrimitiveCycle(m[k], kp, next); err != nil {
-				return err
-			}
-			continue
-		}
-		if err := checkPrimitiveCycle(m[k], kp, stack); err != nil {
-			return err
-		}
-	}
-	return nil
-}
 
 func sortedTemplateNames(t map[string]map[string]*templateEntry) []string {
 	keys := make([]string, 0, len(t))

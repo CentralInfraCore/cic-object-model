@@ -5,3 +5,10 @@
 /*/*/__pycache__/
 /*/__pycache__/
 /.coverage
+
+# Build artifacts: coverage profiles and HTML reports, per commit.
+/output/
+
+# Fuzz corpus entries the local runs generate. Crashers are committed by hand,
+# with the input that found them, so a regression has a named test.
+/go/testdata/fuzz/
