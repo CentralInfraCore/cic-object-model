@@ -83,7 +83,7 @@ ci.spec:
 ci.impl:
 	@echo "--- Reference implementations ---"
 	@if [ -f go/go.mod ]; then \
-		$(MAKE) golang.quality && $(MAKE) golang.test; \
+		$(MAKE) golang.quality && $(MAKE) golang.test && $(MAKE) golang.coverage-threshold; \
 	else \
 		echo "go/ absent — skipped"; \
 	fi
