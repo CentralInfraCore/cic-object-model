@@ -12,3 +12,9 @@
 # Fuzz corpus entries the local runs generate. Crashers are committed by hand,
 # with the input that found them, so a regression has a named test.
 /go/testdata/fuzz/
+
+# Cargo's target directory. CARGO_TARGET_DIR points outside the repository
+# (mk/rust.mk RUST_CACHE_DIR), so this should stay empty — it is here for the
+# invocation that forgets, because a target tree inside a synced directory is
+# expensive in a way nobody notices until it is gigabytes.
+/rust/target/

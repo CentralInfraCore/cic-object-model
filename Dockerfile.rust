@@ -1,0 +1,15 @@
+# Derived from the digest-pinned toolchain in docker-compose.yml.
+#
+# The base image ships rustc and cargo but not rustfmt or clippy, and its
+# RUSTUP_HOME (/usr/local/rustup) is root-owned while the service runs as the
+# host user — so `rustup component add` at container runtime cannot work. The
+# components are added here instead, at build time, as root.
+#
+# The pin still lives in exactly one place: RUST_IMAGE is passed from the
+# *rust_image anchor, so this file cannot name a different toolchain than the
+# one docker-compose.yml pins.
+ARG RUST_IMAGE
+FROM ${RUST_IMAGE}
+
+RUN rustup component add rustfmt clippy llvm-tools-preview \
+    && chmod -R a+rX /usr/local/rustup /usr/local/cargo

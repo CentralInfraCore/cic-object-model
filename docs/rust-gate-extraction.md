@@ -140,9 +140,26 @@ they check each other by agreeing on the vector corpus.
 3. The root `Makefile` already carries `-include mk/rust.mk` (optional include,
    so the absence of the file is not an error today). Add the aliases
    `rust: rust.quality` and extend `check`.
-4. `.github/workflows/ci.yml` already has a `Rust quality gate (rust/)` step
-   guarded on `hashFiles('rust/Cargo.toml')`. It activates when `rust/` is
-   populated; no CI edit is needed.
+4. **No workflow edit is needed, but not for the reason stated here before.**
+
+   This document claimed, under "Verified 2026-08-07", that
+   `.github/workflows/ci.yml` already carried a `Rust quality gate (rust/)`
+   step guarded on `hashFiles('rust/Cargo.toml')`. Measured 2026-08-08: the
+   string `rust` does not appear in that file at all. The claim was wrong, and
+   it was wrong in the most expensive way a claim can be — specific, plausible,
+   and labelled verified.
+
+   What is true is better. The workflow runs exactly one thing, `make ci`, and
+   `mk/ci.mk`'s `ci.impl` already carries the guard:
+
+   ```make
+   if [ -f rust/Cargo.toml ] && [ -f mk/rust.mk ]; then $(MAKE) rust; fi
+   ```
+
+   So creating those two files activates the Rust gate in CI **and** locally,
+   from one definition. Note the consequence: it activates the FULL gate,
+   `rust.quality`, including coverage and `cargo deny` — both of which install a
+   cargo subcommand on first use. Measure that cost before assuming it is free.
 
 ## Verification required from the sub-job
 
