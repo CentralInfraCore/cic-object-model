@@ -18,8 +18,12 @@ import (
 // The residual hole is the nil interface value, which Go cannot forbid; a
 // module boundary therefore still rejects nil explicitly (see ../module).
 type CanonicalObject interface {
-	// ModelVersion is the model this object conforms to (INV-033), which a
-	// module must match against the version it declares (INV-034).
+	// ModelVersion is the version this object was materialized at.
+	//
+	// This IS the hand-off frame of INV-033: the version travels with the
+	// object as a property of the value, and never appears inside the node
+	// tree or in CanonicalYAML. A host reads it here to decide whether
+	// delivery is safe for the version a module declares (INV-034).
 	ModelVersion() string
 	// CanonicalYAML is the deterministic serialization (INV-030).
 	CanonicalYAML() []byte

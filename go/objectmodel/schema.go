@@ -72,7 +72,14 @@ type Schema struct {
 	templates map[string]map[string]*templateEntry
 }
 
-// LoadSchema parses and validates a schema. The checks it runs — INV-010,
+// LoadSchema parses and validates a schema on its own, for tooling that wants
+// to reject a bad schema before there is any input to materialize.
+//
+// Stated limit: *Schema carries no accessors and cannot be handed back to
+// Materialize, which takes schema bytes and calls this itself. Today the useful
+// half of the result is the error.
+//
+// The checks it runs — INV-010,
 // INV-015 and INV-005 — are the three the corpus places at stage
 // `schema-load`, a stage SPEC §8 does not list (docs/spec-defects.md SD-002).
 func LoadSchema(data []byte) (*Schema, error) {
