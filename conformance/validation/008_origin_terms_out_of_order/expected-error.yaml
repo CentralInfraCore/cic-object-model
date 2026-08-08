@@ -1,0 +1,10 @@
+---
+error:
+  code: E_ORIGIN_GRAMMAR
+  invariant: INV-013
+  stage: final-validation
+  path: $.values.mtu.origin
+  detail: >-
+    origin [schema, sealed] is not one of the four forms of SPEC 5.2. The
+    grammar produces [sealed(t,p), schema]; the reversed pair holds the same
+    authorities and is still not a form the grammar contains.

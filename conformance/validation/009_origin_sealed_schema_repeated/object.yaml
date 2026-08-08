@@ -1,0 +1,15 @@
+---
+values:
+  mtu:
+    values: 9000
+    origin: [{sealed: {template: $network-object, path: $.access.read}}, schema, schema]
+    shape:
+      values:
+        type:
+          values: scalar
+          origin: [schema]
+        scalar_type:
+          values: integer
+          origin: [schema]
+      origin: [schema]
+origin: [yaml]

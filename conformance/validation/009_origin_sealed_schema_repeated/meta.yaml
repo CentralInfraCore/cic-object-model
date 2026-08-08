@@ -1,0 +1,11 @@
+---
+id: validation/009_origin_sealed_schema_repeated
+title: Canonical object with origin [sealed(t,p), schema, schema] is rejected
+invariants: [INV-013, INV-039]
+description: >-
+  A valid production with one term repeated. This is the arity case: the prefix
+  matches the fourth form exactly, so a check that looks for the presence of
+  sealed and schema — or one that matches a prefix rather than the whole
+  sequence — accepts it. Guards against a fix for validation/007 that
+  deduplicates terms instead of matching the sequence, which would pass 007 and
+  008 and let this through.
