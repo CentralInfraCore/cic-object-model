@@ -162,13 +162,34 @@ func (n *Node) Primitives() []string {
 // `$.values.values.values.mtu` would name the same node, and a primitive would
 // be indistinguishable from a payload child that shares its name.
 //
+// A leading `$` means the root and is not decoration: an absolute address is
+// answered by the root and by nothing else. An address without it is relative
+// to the receiver. Malformed spellings — `.values.mtu`, `$values.mtu`, a
+// trailing or doubled separator — are rejected rather than repaired, so a
+// caller holding an address can tell whether it is the canonical one.
+//
 // Get does not create anything and reports false for an address that does not
 // resolve. It is a reader, not a cursor.
 func (n *Node) Get(path string) (*Node, bool) {
+	segs, absolute, ok := parsePath(path)
+	if !ok {
+		return nil, false
+	}
+	// `$` means the root of the object, so an absolute address is answerable
+	// only by the root. It used to be stripped and ignored, which made it
+	// decorative: `mtu.Get("$.shape")` returned `$.values.mtu.shape` and
+	// reported true. An address that names one node resolved to a different
+	// one, silently, and feeding an Error.Path back into any node but the root
+	// gave a wrong answer rather than a miss. A Node holds no parent link, so
+	// the root cannot be reached from here — the honest result is no result.
+	if absolute && !n.isRoot {
+		return nil, false
+	}
+
 	cur := n
 	inPayload := false // did the previous segment step into the payload?
 
-	for _, seg := range splitPath(path) {
+	for _, seg := range segs {
 		switch {
 		case inPayload:
 			// Only a payload child can follow a `values` step.
@@ -221,15 +242,57 @@ func parseIndex(seg string) (int, bool) {
 	return i, true
 }
 
-// splitPath turns an address into segments, tolerating the leading `$` that
-// Path() and Error.Path carry. `values[0]` stays one segment.
-func splitPath(path string) []string {
-	path = strings.TrimPrefix(path, "$")
-	path = strings.TrimPrefix(path, ".")
-	if path == "" {
-		return nil
+// parsePath splits an address into segments and reports whether it is absolute.
+// `values[0]` stays one segment. A malformed address is rejected rather than
+// repaired, which is the change from what came before.
+//
+// splitPath used to trim a leading `$` and then a leading `.`, independently and
+// optionally. Four spellings therefore named every node —
+//
+//	$.values.mtu    values.mtu    .values.mtu    $values.mtu
+//
+// — and four more named the node itself: "", "$", ".", "$.". INV-040 says every
+// node has exactly one address; a resolver that answers to eight spellings of
+// it does not disprove the invariant, but it does mean no caller can tell
+// whether a string it holds is the canonical address or one of the variants,
+// which is most of what the invariant is for.
+//
+// Two forms survive, and they are not spellings of each other:
+//
+//	$              the root, absolute — the form Path() returns for the root
+//	$.a.b          absolute, from the root
+//	a.b            relative to the receiver, which the doc comment above
+//	               documents and which nothing else provides
+//	""             the receiver itself, the relative identity
+//
+// They coincide only at the root, where "" and "$" both name it — by two
+// different operations that happen to meet there.
+func parsePath(path string) (segs []string, absolute bool, ok bool) {
+	switch path {
+	case "":
+		return nil, false, true // the receiver
+	case "$":
+		return nil, true, true // the root
 	}
-	return strings.Split(path, ".")
+	if strings.HasPrefix(path, "$") {
+		rest := path[1:]
+		if !strings.HasPrefix(rest, ".") {
+			return nil, false, false // `$values.mtu`
+		}
+		path, absolute = rest[1:], true
+	}
+	// A leading, trailing or doubled separator names an empty segment, and no
+	// node has an empty name.
+	if path == "" || strings.HasPrefix(path, ".") || strings.HasSuffix(path, ".") {
+		return nil, false, false
+	}
+	segs = strings.Split(path, ".")
+	for _, s := range segs {
+		if s == "" {
+			return nil, false, false
+		}
+	}
+	return segs, absolute, true
 }
 
 func (n *Node) setPrimitive(name string, p *Node) {
