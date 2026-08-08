@@ -1,8 +1,7 @@
 # cic-object-model
 
 The normative specification of the CIC object model, its conformance vectors,
-and (once the implementation sub-jobs land) the Go and Rust reference
-implementations.
+and the Go reference implementation. The Rust one is not written.
 
 **[`SPEC.md`](SPEC.md) is the authority.** The implementations are subordinate
 to it: where an implementation disagrees with the specification, the
@@ -12,21 +11,32 @@ implementation is wrong.
 
 ## Status
 
+Model version **0.2**. SPEC.md declares it; `TestVersionIdentity` holds every
+other declaration in the repository to that number, because 0.2 was once
+written into SPEC.md and propagated nowhere else.
+
 | Component | Status |
 |---|---|
-| `SPEC.md` — 34 numbered invariants | written, normative |
-| `conformance/` — 27 vectors | **written, never executed** |
-| `docs/spec-vector-map.md` | 32/34 invariants vector-covered, 2 declared unvectorizable |
+| `SPEC.md` — 40 numbered invariants | written, normative |
+| `conformance/` — 26 vectors | executed against Go on every CI run |
+| `docs/spec-vector-map.md` | 35 invariants vector-covered, 5 declared unvectorizable with a reason each |
 | `tools/check_spec_vectors.py` | runs and passes; negative-tested |
-| `go/` | empty — `cic-object-model-go` sub-job |
-| `rust/` | empty — `cic-object-model-rust` sub-job |
+| `go/` | implemented — corpus, fuzz, mutation, adversarial and CLI golden tests |
+| `rust/` | **empty** — the second implementation does not exist |
 | `mk/rust.mk` | absent — see [`docs/rust-gate-extraction.md`](docs/rust-gate-extraction.md) |
-| Docker build / CI | **not executed** — no Docker in the authoring environment |
+| Docker build / CI | runs; `make ci` is the same pipeline locally and in Actions |
 
-No vector in this repository has ever run, because nothing here can run one
-yet. `make conformance` fails rather than reporting success when no
-implementation is present; a vector corpus that passes vacuously is worse than
-none.
+Two limits worth stating before you rely on any of the above.
+
+**One implementation is not two.** The mutual check described below is the
+reason there are meant to be two, and it is not in force: every claim that "the
+model behaves this way" currently rests on one reading of the corpus by one
+implementation, plus the corpus itself.
+
+**§8.8 defines no canonical byte encoding** (`docs/spec-defects.md` SD-010), so
+`INV-030`'s determinism is checked structurally rather than byte for byte. Until
+that is written, "the two implementations agree" cannot mean byte-identical
+output, and a digest taken over a canonical object has no specified input.
 
 ---
 
@@ -66,19 +76,25 @@ docs/
   migration-surface.md        the measured file list this model would change
   branch-decision.md          why base-repo wasm/main
   rust-gate-extraction.md     line-referenced recipe for mk/rust.mk
-go/                         reference implementation (sub-job)
-rust/                       reference implementation (sub-job)
+go/                         reference implementation
+rust/                       reference implementation (not written)
 ```
 
 ## Make targets
 
+`make ci` runs the whole pipeline and is what CI runs — there is no separate
+command, so a green badge and a green local run mean the same thing.
+
 | Target | What it does |
 |---|---|
+| `make ci` | the full pipeline: gates, spec checks, Go build/test/coverage |
 | `make check` | Python/YAML quality gate |
-| `make manifest-verify` | `MANIFEST.sha256` integrity |
+| `make manifest-verify` | `MANIFEST.sha256` describes the tracked tree exactly |
 | `make docs.link-check` | internal documentation links resolve |
 | `make golang.quality` | Go gate over `go/` |
+| `make golang.coverage-threshold` | fails below `COVERAGE_MIN` (90%) |
 | `make conformance` | run the corpus against every present implementation |
+| `make verify` | fuzz, mutation and adversarial suites |
 
 `tools/check_spec_vectors.py` runs in CI and fails if `SPEC.md` and the vector
 corpus drift apart — if an invariant claims a vector that does not exist, or a

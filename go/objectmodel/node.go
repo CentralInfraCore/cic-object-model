@@ -60,8 +60,26 @@ type Node struct {
 // Path returns the node's address in the object ($.interface.mtu).
 func (n *Node) Path() string { return n.path }
 
-// Origin returns the node's authoring authority (SPEC §5).
-func (n *Node) Origin() Origin { return n.origin }
+// Origin returns the node's authoring authority (SPEC §5), copied.
+//
+// The copy is the whole point. This method used to return the node's own
+// slice, so a caller could write through it and change the provenance of a
+// validated object in place:
+//
+//	obj.Root().Origin()[0].Kind = "evil"
+//
+// After that the tree said `evil` while CanonicalYAML() still said `schema`,
+// byte for byte unchanged. No forgery and no unsafe was needed — one
+// assignment split the two views of one object apart, and which half a reader
+// consults then decides what it believes about who authored the value.
+//
+// Children() and Primitives() already copied; this one was missed. OriginTerm
+// holds only strings, so copying the slice copies everything reachable.
+func (n *Node) Origin() Origin {
+	out := make(Origin, len(n.origin))
+	copy(out, n.origin)
+	return out
+}
 
 // Child returns a child node of a structured payload.
 func (n *Node) Child(name string) (*Node, bool) {

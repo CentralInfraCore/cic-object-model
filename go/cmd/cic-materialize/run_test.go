@@ -161,28 +161,37 @@ func TestRunPartialFailures(t *testing.T) {
 		})
 	})
 
-	t.Run("delivery is refused for an undeclared model version", func(t *testing.T) {
-		// The module declares which version it consumes (INV-034). A schema at
-		// any other version materializes fine and must not be delivered — the
-		// object is good, the hand-off is not.
+	t.Run("an unsupported model version produces nothing at all", func(t *testing.T) {
+		// This assertion was inverted, and the inversion is the point.
+		//
+		// It used to say: a schema at any other version materializes fine, the
+		// object reaches stdout, and only the hand-off is refused. That was
+		// true because LoadSchema accepted any version string at all — so the
+		// tool emitted an object it had no basis to produce, having run 0.2
+		// semantics under a foreign label. A caller piping stdout got the
+		// object; only one reading the exit code learned it was unusable.
+		//
+		// LoadSchema now refuses an unknown version outright (INV-033: an
+		// object is handed over at a KNOWN version), so the refusal happens
+		// before a byte is written. Empty stdout is the contract now.
 		schema := filepath.Join(t.TempDir(), "schema.yaml")
 		body, err := os.ReadFile(filepath.Join(dir, "schema.yaml"))
 		if err != nil {
 			t.Fatalf("reading the vector schema: %v", err)
 		}
-		if err := os.WriteFile(schema, []byte(strings.Replace(string(body), "0.1", "9.9", 1)), 0o644); err != nil {
+		if err := os.WriteFile(schema, []byte(strings.Replace(string(body), "0.2", "9.9", 1)), 0o644); err != nil {
 			t.Fatalf("writing the temp schema: %v", err)
 		}
 
+		var runErr error
 		out := captureStdout(t, func() {
-			if err := run(schema, filepath.Join(dir, "input.yaml"), "", true); err == nil {
-				t.Error("delivery of an undeclared version was allowed")
-			}
+			runErr = run(schema, filepath.Join(dir, "input.yaml"), "", true)
 		})
-		// The object still went to stdout before the boundary refused it: the
-		// materialization succeeded, only the hand-off failed.
-		if !strings.Contains(out, "values:") {
-			t.Error("the canonical object was not written before the refusal")
+		if runErr == nil {
+			t.Fatal("a schema at an unsupported version was accepted")
+		}
+		if strings.TrimSpace(out) != "" {
+			t.Errorf("stdout must be empty when nothing may be produced, got:\n%s", out)
 		}
 	})
 }

@@ -74,6 +74,13 @@ const (
 	CodeOriginGrammar            = "E_ORIGIN_GRAMMAR"
 	CodeMissingValues            = "E_MISSING_VALUES"
 	CodeMissingOrigin            = "E_MISSING_ORIGIN"
+
+	// CodeUnsupportedModelVersion refuses a schema whose declared version this
+	// implementation does not implement, or which declares none. INV-033 says
+	// an object is handed over AT A KNOWN version; producing one from a schema
+	// at an unknown version would make that unsatisfiable at the boundary
+	// instead of at the load, where the fault actually is.
+	CodeUnsupportedModelVersion = "E_UNSUPPORTED_MODEL_VERSION"
 )
 
 // Error is the single error type the materializer raises. Every rejection
