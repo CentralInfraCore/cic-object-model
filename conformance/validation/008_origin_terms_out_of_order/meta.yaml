@@ -1,0 +1,12 @@
+---
+id: validation/008_origin_terms_out_of_order
+title: Canonical object with origin [schema, sealed(t,p)] is rejected
+invariants: [INV-013, INV-039]
+description: >-
+  The fourth production is [sealed(t,p), schema] and its order carries meaning:
+  sealed constrains structural authority, schema describes the value source, and
+  the structural term comes first. Reversed, the pair holds exactly the same two
+  authorities, so every presence-based check passes it — including the
+  truth-table rows, which are unordered by construction. Order is a property of
+  the grammar alone, which is why the grammar has to be matched rather than
+  summarised.

@@ -96,8 +96,13 @@ var expectedCounts = map[string]int{
 	// INV-005 no longer treats as one — under INV-035 a primitive's payload
 	// materializes like any other structure, so that nesting is ordinary.
 	// See docs/spec-defects.md SD-005.
-	"invalid":    7,
-	"validation": 6,
+	"invalid": 7,
+	// 9 since the origin grammar became enforced: 007, 008 and 009 are the
+	// negative side of INV-013. The invariant says "exactly four forms" and was
+	// covered by four vectors, one per form, all positive — so the corpus
+	// asserted that the four are accepted and never that a fifth is refused.
+	// [yaml, yaml] and [schema, sealed(t,p)] passed against that corpus.
+	"validation": 9,
 }
 
 type expectedError struct {
@@ -137,15 +142,48 @@ func read(t *testing.T, parts ...string) []byte {
 	return b
 }
 
-// TestCorpusSize fails if the corpus is not the 27 vectors SPEC §10 and
-// docs/spec-vector-map.md describe.
+// TestCorpusSize fails if the corpus on disk is not the corpus expectedCounts
+// describes.
+//
+// The total used to be a second literal alongside the per-group map, and the
+// two drifted exactly as duplicated facts do: the comment said 27, the literal
+// said 26, and the map summed to 26. It is derived now, so the counts live in
+// one place.
+//
+// What the derivation cannot catch is a group that exists on disk and not in
+// the map — the loops only ever visit the map's keys, so a whole directory of
+// vectors could sit there unexecuted. That is checked separately below, and it
+// is the same failure shape as the manifest gate that could not see a file it
+// did not list.
 func TestCorpusSize(t *testing.T) {
-	total := 0
-	for group := range expectedCounts {
-		total += len(vectors(t, group))
+	entries, err := os.ReadDir(corpus)
+	if err != nil {
+		t.Fatalf("reading the corpus root: %v", err)
 	}
-	if total != 26 {
-		t.Fatalf("discovered %d vectors, the corpus is 26", total)
+	onDisk := map[string]bool{}
+	for _, e := range entries {
+		if e.IsDir() {
+			onDisk[e.Name()] = true
+		}
+	}
+	for group := range onDisk {
+		if _, known := expectedCounts[group]; !known {
+			t.Errorf("conformance/%s/ exists but no runner claims it; its vectors never run", group)
+		}
+	}
+	for group := range expectedCounts {
+		if !onDisk[group] {
+			t.Errorf("expectedCounts names %q, which is not in the corpus", group)
+		}
+	}
+
+	total, want := 0, 0
+	for group, n := range expectedCounts {
+		total += len(vectors(t, group))
+		want += n
+	}
+	if total != want {
+		t.Fatalf("discovered %d vectors, expectedCounts describes %d", total, want)
 	}
 	t.Logf("corpus: %d vectors", total)
 }

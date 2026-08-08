@@ -158,8 +158,11 @@ def main() -> int:
     print("PASS — SPEC.md and the vector corpus agree.")
     print()
     print("NOTE: this gate checks the spec<->vector mapping only. It does not")
-    print("run any vector. Vector status is 'written, never executed' until an")
-    print("implementation lands.")
+    print("run any vector — go/conformance does that — and it cannot tell what")
+    print("a mapping proves. INV-013 ('exactly four forms') was mapped to four")
+    print("vectors, one per form, every one of them positive: the corpus")
+    print("asserted that the four are accepted and never that a fifth is")
+    print("rejected, and this gate passed throughout.")
     return 0
 
 
