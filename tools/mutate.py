@@ -25,7 +25,10 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import pathlib
-import subprocess
+
+# nosec B404 — this tool exists to run the test suite; a subprocess is the
+# point of it, not an incidental risk.
+import subprocess  # nosec B404
 import sys
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
@@ -57,7 +60,7 @@ MUTATIONS: list[Mutation] = [
     Mutation(
         name="primitive-payload-stays-flat",
         file="go/objectmodel/primitives.go",
-        find="\t\t\tn.entries[k] = primitiveNode(path+\".values.\"+k, child, org)",
+        find='\t\t\tn.entries[k] = primitiveNode(path+".values."+k, child, org)',
         replace="\t\t\tn.entries[k] = &Node{path: path, kind: kindRaw, raw: child, origin: org}",
         breaks="primitive payloads stop materializing into nodes (INV-035, SD-003)",
         expect="conformance — 013 and 011 encode the node tree",
@@ -65,8 +68,8 @@ MUTATIONS: list[Mutation] = [
     Mutation(
         name="address-drops-the-values-step",
         file="go/objectmodel/node.go",
-        find="\t\tcase seg == \"values\":",
-        replace="\t\tcase seg == \"__never__\":",
+        find='\t\tcase seg == "values":',
+        replace='\t\tcase seg == "__never__":',
         breaks="Get stops resolving payload children, so no address works (INV-040)",
         expect="api — the corpus never calls an accessor and cannot see this",
     ),
@@ -81,8 +84,8 @@ MUTATIONS: list[Mutation] = [
     Mutation(
         name="error-stage-is-wrong",
         file="go/objectmodel/primitives.go",
-        find="return newError(CodeUnknownPrimitive, \"INV-021\", StagePrimitiveEvaluation,",
-        replace="return newError(CodeUnknownPrimitive, \"INV-021\", StageEntryValidation,",
+        find='return newError(CodeUnknownPrimitive, "INV-021", StagePrimitiveEvaluation,',
+        replace='return newError(CodeUnknownPrimitive, "INV-021", StageEntryValidation,',
         breaks="a correct error is raised at the wrong pipeline stage (SPEC §8)",
         expect="conformance — every expected-error.yaml asserts on stage:",
     ),
@@ -97,8 +100,8 @@ MUTATIONS: list[Mutation] = [
     Mutation(
         name="version-member-is-tolerated",
         file="go/objectmodel/validate.go",
-        find="\t\tcase isDocRoot && k == \"cic\":",
-        replace="\t\tcase isDocRoot && k == \"__never__\":",
+        find='\t\tcase isDocRoot && k == "cic":',
+        replace='\t\tcase isDocRoot && k == "__never__":',
         breaks="a `cic` member on the root stops being rejected (INV-033, SD-017)",
         expect="conformance — validation/006 is exactly this case",
     ),
@@ -106,13 +109,32 @@ MUTATIONS: list[Mutation] = [
 
 
 def run(cmd: list[str]) -> int:
-    return subprocess.run(cmd, cwd=REPO, capture_output=True, text=True).returncode
+    # nosec B603 — B603 is about executing untrusted input. Every command this
+    # runs is a fixed list defined in this file; nothing from the mutation table
+    # or the command line reaches argv. shell=True is deliberately not used, so
+    # there is no shell to inject into either.
+    return subprocess.run(  # nosec B603
+        cmd, cwd=REPO, capture_output=True, text=True
+    ).returncode
 
 
 def suite_passes() -> bool:
     """The whole Go suite: conformance, api, module boundary, inv032."""
-    return run(["docker", "compose", "exec", "-T", "builder",
-                "sh", "-c", "cd /app/go && go test ./... -count=1"]) == 0
+    return (
+        run(
+            [
+                "docker",
+                "compose",
+                "exec",
+                "-T",
+                "builder",
+                "sh",
+                "-c",
+                "cd /app/go && go test ./... -count=1",
+            ]
+        )
+        == 0
+    )
 
 
 def apply(m: Mutation) -> str:
@@ -142,8 +164,10 @@ def main() -> int:
 
     print("Baseline: the suite must pass before anything is broken.")
     if not suite_passes():
-        print("FAIL — the suite is already red. Fix that first; mutation results "
-              "would mean nothing.")
+        print(
+            "FAIL — the suite is already red. Fix that first; mutation results "
+            "would mean nothing."
+        )
         return 1
     print("  baseline green\n")
 
