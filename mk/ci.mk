@@ -102,7 +102,7 @@ ci.impl:
 # verify is everything the gate does not have time for. Each target below is
 # independently runnable during development; `make -j verify.fuzz verify.mutate`
 # works because they touch different things.
-verify: verify.fuzz verify.mutate
+verify: verify.fuzz verify.mutate verify.adversarial
 
 # FUZZTIME is deliberately short by default so `make verify.fuzz` is usable in a
 # development loop. Raise it for a real hunt: FUZZTIME=10m make verify.fuzz
@@ -128,3 +128,12 @@ verify.fuzz:
 verify.mutate:
 	@echo "--- Mutation testing ---"
 	@python3 tools/mutate.py
+
+# Attacks INV-032 — the one invariant that asserts an impossibility — instead of
+# asserting it. Part of the normal Go suite, so `make ci` runs it too; named
+# here because it is worth running on its own after any change to the boundary.
+.PHONY: verify.adversarial
+verify.adversarial:
+	@echo "--- Adversarial: can the boundary be forged, crashed or exhausted? ---"
+	@docker compose exec -T builder sh -c 'cd /app/go && \
+		go test ./module/ -run "TestForgery|TestNil|TestResource" -v -count=1'
