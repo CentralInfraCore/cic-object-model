@@ -156,3 +156,13 @@ golden.update:
 	@echo ""
 	@echo "Now read the diff. Nothing is verified until you do:"
 	@git diff --stat -- conformance/ || true
+
+# The CLI is the harness contract: bytes in, bytes out, an exit code. It is what
+# a second implementation has to match, and it is checked against the corpus
+# itself rather than against a separate set of golden files — a second set would
+# be a second thing to keep in step, and the first time they drifted the CLI
+# would be verified against a stale copy of what the vectors already say.
+.PHONY: golden.cli
+golden.cli:
+	@echo "--- CLI contract against the corpus ---"
+	@docker compose exec -T builder sh -c 'cd /app/go && go test ./cmd/... -count=1 -v'
