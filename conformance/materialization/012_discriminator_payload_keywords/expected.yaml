@@ -1,10 +1,15 @@
 ---
+# The payload is opaque (INV-028), so its keys — `values`, `default`, `origin`,
+# `access` — are domain data and survive verbatim (INV-011). Nothing below
+# `checkbox.values` is a node.
+#
+# `[on, off]` is written unquoted on purpose: it is the shape a YAML 1.1 reader
+# turns into booleans, and the point of the vector is that an opaque payload is
+# preserved exactly as parsed, whatever that reader decides.
 values:
   checkbox:
     values:
-      values:
-      - true
-      - false
+      values: [on, off]
       default: false
       origin: user-supplied
       access: public

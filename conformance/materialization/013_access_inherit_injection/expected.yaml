@@ -25,7 +25,7 @@ values:
                   values:
                     subjects:
                       values:
-                      - OU=operators,O=acme
+                        - OU=operators,O=acme
                       origin: [schema]
                     effect:
                       values: allow
@@ -47,7 +47,7 @@ values:
                   values:
                     subjects:
                       values:
-                      - OU=network-admins,O=acme
+                        - OU=network-admins,O=acme
                       origin: [schema]
                     effect:
                       values: allow

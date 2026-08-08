@@ -22,7 +22,7 @@ values:
                   values:
                     subjects:
                       values:
-                      - OU=network-admins,O=acme
+                        - OU=network-admins,O=acme
                       origin: [yaml]
                     effect:
                       values: allow
