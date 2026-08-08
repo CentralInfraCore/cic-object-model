@@ -1,0 +1,10 @@
+---
+error:
+  code: E_UNKNOWN_MEMBER
+  invariant: INV-021
+  stage: final-validation
+  path: $.cic
+  detail: >-
+    A node must not carry a member that is neither `values`, `origin`, nor a
+    primitive. The model version belongs to the frame that hands the object
+    over (INV-033), not to the object.

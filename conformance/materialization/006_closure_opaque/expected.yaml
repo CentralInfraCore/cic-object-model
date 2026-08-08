@@ -1,6 +1,4 @@
 ---
-cic:
-  model: "0.1"
 values:
   payload:
     values:
@@ -11,6 +9,14 @@ values:
     origin: [yaml]
     shape:
       values:
-        type: opaque
+        type:
+          values: opaque
+          origin: [schema]
       origin: [schema]
 origin: [yaml]
+shape:
+  values:
+    type:
+      values: object
+      origin: [schema]
+  origin: [schema]

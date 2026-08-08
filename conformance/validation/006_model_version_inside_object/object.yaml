@@ -1,0 +1,19 @@
+---
+# The version does not live here (INV-033). A frame hands this object over at a
+# known version; the object itself carries only nodes.
+cic:
+  model: "0.2"
+values:
+  mtu:
+    values: 9000
+    origin: [yaml]
+    shape:
+      values:
+        type:
+          values: scalar
+          origin: [schema]
+        scalar_type:
+          values: integer
+          origin: [schema]
+      origin: [schema]
+origin: [yaml]

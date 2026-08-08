@@ -2,7 +2,7 @@
 id: validation/001_origin_yaml_schema_conflict
 title: Canonical object with origin [yaml, schema] is rejected
 truth_table_row: 7
-invariants: [INV-017, INV-013]
+invariants: [INV-017, INV-013, INV-039]
 description: >-
   Truth-table row 7. Unreachable from authoring input (origin may not be
   authored, INV-007), so it is exercised against final validation (SPEC 8.7)
