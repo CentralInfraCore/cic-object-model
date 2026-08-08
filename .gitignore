@@ -5,3 +5,6 @@
 /*/*/__pycache__/
 /*/__pycache__/
 /.coverage
+
+# Build artifacts: coverage profiles and HTML reports, per commit.
+/output/
