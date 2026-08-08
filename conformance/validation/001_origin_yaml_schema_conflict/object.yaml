@@ -1,13 +1,15 @@
 ---
-cic:
-  model: "0.1"
 values:
   mtu:
     values: 9000
     origin: [yaml, schema]
     shape:
       values:
-        type: scalar
-        scalar_type: integer
+        type:
+          values: scalar
+          origin: [schema]
+        scalar_type:
+          values: integer
+          origin: [schema]
       origin: [schema]
 origin: [yaml]

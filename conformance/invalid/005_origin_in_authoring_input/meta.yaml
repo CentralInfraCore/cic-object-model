@@ -1,7 +1,7 @@
 ---
 id: invalid/005_origin_in_authoring_input
 title: Authoring input declaring its own origin is rejected
-invariants: [INV-007, INV-014]
+invariants: [INV-007, INV-014, INV-036]
 description: >-
   A node must not be able to claim its own provenance — that is what makes
   origin trustworthy. Rejected at entry validation. Contrast with

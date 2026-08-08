@@ -1,6 +1,8 @@
 ---
-cic:
-  model: "0.1"
+# `mtu.origin` is written as a node — it carries `values` and its own `origin`.
+# INV-004 says origin is terminal: it is a value in the grammar of §5, not a
+# node. If it were a node it would need an origin, which would need an origin,
+# and the recursion INV-003 sets up would not be well-founded.
 values:
   mtu:
     values: 9000
@@ -9,7 +11,11 @@ values:
       origin: [schema]
     shape:
       values:
-        type: scalar
-        scalar_type: integer
+        type:
+          values: scalar
+          origin: [schema]
+        scalar_type:
+          values: integer
+          origin: [schema]
       origin: [schema]
 origin: [yaml]

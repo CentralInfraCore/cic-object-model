@@ -34,3 +34,6 @@ ignore: |
   # `*.schema.yaml` ignore would have swallowed them.
   /tools/
   /tests/
+  # Same generator, same reason: companion metadata sits beside every Go source
+  # file too, once an implementation exists.
+  /go/

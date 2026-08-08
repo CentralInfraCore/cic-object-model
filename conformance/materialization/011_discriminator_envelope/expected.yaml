@@ -1,22 +1,43 @@
 ---
-cic:
-  model: "0.1"
 values:
   mtu:
     values: 9000
     origin: [yaml]
     shape:
       values:
-        type: scalar
-        scalar_type: integer
+        type:
+          values: scalar
+          origin: [schema]
+        scalar_type:
+          values: integer
+          origin: [schema]
       origin: [schema]
     access:
       values:
         modify:
-          rules:
-            network-admin:
-              subjects: ["OU=network-admins,O=acme"]
-              effect: allow
-          inherit: true
+          values:
+            rules:
+              values:
+                network-admin:
+                  values:
+                    subjects:
+                      values:
+                        - OU=network-admins,O=acme
+                      origin: [yaml]
+                    effect:
+                      values: allow
+                      origin: [yaml]
+                  origin: [yaml]
+              origin: [yaml]
+            inherit:
+              values: true
+              origin: [yaml]
+          origin: [yaml]
       origin: [yaml]
 origin: [yaml]
+shape:
+  values:
+    type:
+      values: object
+      origin: [schema]
+  origin: [schema]

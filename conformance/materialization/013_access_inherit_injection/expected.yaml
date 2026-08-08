@@ -1,14 +1,16 @@
 ---
-cic:
-  model: "0.1"
 values:
   mtu:
     values: 9000
     origin: [yaml]
     shape:
       values:
-        type: scalar
-        scalar_type: integer
+        type:
+          values: scalar
+          origin: [schema]
+        scalar_type:
+          values: integer
+          origin: [schema]
       origin: [schema]
     role:
       values: config
@@ -16,17 +18,51 @@ values:
     access:
       values:
         read:
-          rules:
-            operator:
-              subjects: ["OU=operators,O=acme"]
-              effect: allow
-          inherit: true
-          default_injection: 0
+          values:
+            rules:
+              values:
+                operator:
+                  values:
+                    subjects:
+                      values:
+                        - OU=operators,O=acme
+                      origin: [schema]
+                    effect:
+                      values: allow
+                      origin: [schema]
+                  origin: [schema]
+              origin: [schema]
+            inherit:
+              values: true
+              origin: [schema]
+            default_injection:
+              values: 0
+              origin: [schema]
+          origin: [schema]
         modify:
-          rules:
-            network-admin:
-              subjects: ["OU=network-admins,O=acme"]
-              effect: allow
-          inherit: 0
+          values:
+            rules:
+              values:
+                network-admin:
+                  values:
+                    subjects:
+                      values:
+                        - OU=network-admins,O=acme
+                      origin: [schema]
+                    effect:
+                      values: allow
+                      origin: [schema]
+                  origin: [schema]
+              origin: [schema]
+            inherit:
+              values: 0
+              origin: [schema]
+          origin: [schema]
       origin: [schema]
 origin: [yaml]
+shape:
+  values:
+    type:
+      values: object
+      origin: [schema]
+  origin: [schema]

@@ -17,6 +17,34 @@ corpus won, because `SPEC.md` §10 defines conformance as matching the vectors.
 Those six are the ones to read first: **SD-003, SD-004, SD-005, SD-009,
 SD-013, SD-014.**
 
+## Status at model 0.2
+
+Nine of these are fixed by model 0.2 — every one that made 0.1 unsatisfiable,
+plus the three that made it merely wrong. Nine remain open. The fixed ones are
+kept rather than deleted: a defect report that erases its own history stops
+being evidence, and the reasoning is what makes the fix reviewable.
+
+| | Count | Which |
+|---|---|---|
+| **Fixed in 0.2** | 9 | SD-003, SD-004, SD-005, SD-009, SD-012, SD-013, SD-014, SD-017, SD-018 |
+| **Open** | 10 | SD-001, SD-002, SD-006, SD-007, SD-008, SD-010, SD-011, SD-015, SD-016, **SD-019** |
+
+SD-019 arrived after 0.2 shipped, from attacking INV-032 rather than asserting
+it. The implementation compensates; the specification's claim is still false.
+
+All six blocking defects are fixed. The nine that remain are five
+*underspecified*, two *editorial*, one *divergent* (SD-002) and one *editorial*
+that is really a known limit of Go (SD-016). None of them makes an invariant
+unsatisfiable; each is a place where the document says less than an implementer
+needs, and each is now a decision waiting rather than a surprise.
+
+**A note for the second implementation.** The corpus and the text agree at 0.2
+in the nine places they did not before, so a Rust implementation is no longer
+being asked to reproduce a known contradiction. The six conflicts that made 0.1
+dangerous to implement twice are gone.
+
+---
+
 ## Severity
 
 | | Meaning |
@@ -29,6 +57,8 @@ SD-013, SD-014.**
 ---
 
 ## SD-004 — INV-022 and INV-021 are both false of the root node
+
+> **FIXED in model 0.2.** the root is an ordinary node — it carries its declared `shape` and no `cic` member.
 
 | | |
 |---|---|
@@ -63,6 +93,8 @@ is cleaner: it keeps INV-021 total.
 ---
 
 ## SD-005 — INV-005 is unfalsifiable as worded, and `invalid/008` tests something else
+
+> **FIXED in model 0.2.** INV-005 terminates on schema finiteness; a repeated primitive name is legitimate nesting.
 
 | | |
 |---|---|
@@ -108,6 +140,8 @@ not a side effect.
 
 ## SD-013 — §8.7 must discriminate without a schema, which INV-008 forbids
 
+> **FIXED in model 0.2.** INV-008 scoped to materialization; INV-039 states the schema-less walk is weaker, with its residual risk named.
+
 | | |
 |---|---|
 | **Where** | `SPEC.md` §4.3 (INV-008), §8.7; `conformance/validation/*` |
@@ -140,6 +174,8 @@ weaker — or require `validation/` vectors to carry the schema.
 ---
 
 ## SD-003 — primitive payloads are not materialized, contradicting §2.2 and INV-027
+
+> **FIXED in model 0.2.** INV-035 carries INV-027 into primitive payloads; §2.2 is now true of the objects the model produces.
 
 | | |
 |---|---|
@@ -189,6 +225,8 @@ recursion needs a stated depth bound.
 
 ## SD-014 — INV-007 and INV-011 disagree about `origin` in a non-opaque payload
 
+> **FIXED in model 0.2.** INV-010 reserves `origin` alongside `values`, making the conflict unreachable.
+
 | | |
 |---|---|
 | **Where** | `SPEC.md` §3 (INV-007), §4.3 (INV-010, INV-011) |
@@ -236,6 +274,8 @@ member**".
 ---
 
 ## SD-009 — §8.2 has no syntax, no vector, and INV-031(a) is mis-mapped
+
+> **FIXED in model 0.2.** §8.2 is out of scope for 0.2 and keeps its pipeline position.
 
 | | |
 |---|---|
@@ -389,6 +429,8 @@ evidence.
 ---
 
 ## SD-012 — §8.6 mandates `inherit` chain resolution that 0.1 cannot perform
+
+> **FIXED in model 0.2.** INV-037 records `inherit` verbatim and forbids resolving it; §6.4 names the three undefined questions.
 
 | | |
 |---|---|
@@ -582,6 +624,8 @@ Three things the job brief flagged as suspicious were examined and found sound:
 
 ## SD-017 — INV-033 is unsatisfiable inside the closed node grammar
 
+> **FIXED in model 0.2.** INV-033 restated — the version belongs to the hand-off, matching what INV-034 already said.
+
 | | |
 |---|---|
 | **Where** | `SPEC.md` §11 (INV-033, INV-034), §2.1 (INV-001…INV-004), §6.1 (INV-021) |
@@ -659,3 +703,113 @@ the version somewhere, and the grammar has nowhere to put it. A second
 implementation would hit the same gap and reproduce the same non-conformance,
 which would waste the guarantee that having two implementations exists to
 provide.
+
+---
+
+## SD-018 — §11's release rule made 0.1 unfixable during bootstrap
+
+> **FIXED in model 0.2.** INV-038 requires every implementation that exists, not two.
+
+| | |
+|---|---|
+| **Where** | `SPEC.md` §11 (0.1 text) |
+| **Severity** | **blocking** (process, not object) |
+| **Found by** | orchestrator review, while planning the 0.2 revision |
+
+0.1 §11: *"any change to a normative statement in this document is a version
+increment and MUST arrive in a single change together with its conformance
+vectors and **both implementations**."*
+
+Fixing any of the seventeen defects above is a normative change, so the rule
+required both implementations to ship with the fix. Only the Go implementation
+existed. Writing the Rust one first would have meant implementing the
+known-defective 0.1 — and the reason to have a second implementation is
+independent corroboration, which is worth little against a text already known
+to contradict itself in six places.
+
+So: the specification could not be fixed until a second implementation existed,
+and the second implementation should not be written until the specification was
+fixed.
+
+**Why it could not be worked around.** Ignoring the rule to fix the rule is
+exactly the move the rule exists to prevent, and doing it silently would set the
+precedent that §11 is advisory.
+
+**Root cause.** The rule was written for the steady state — its own stated
+purpose is to make it *"physically awkward to change one implementation's
+semantics without the other and the corpus noticing"*. That purpose is served by
+requiring the implementations that exist. Requiring a fixed number of them
+mistakes the count for the property.
+
+**Suggestion (applied in 0.2).** State the requirement against the
+implementations this repository ships. INV-038 does that, and adds the half the
+0.1 sentence left implicit: a normative change must not be split from its
+vectors across releases either.
+
+---
+
+## SD-019 — INV-032's type-level guarantee is defeatable by interface embedding
+
+| | |
+|---|---|
+| **Where** | `SPEC.md` §9 (INV-032) |
+| **Severity** | **blocking** (security) |
+| **Found by** | `go/module/adversarial_test.go`, by attacking the claim rather than asserting it |
+
+INV-032: *"the module input type is constructible only by the materializer."*
+The Go implementation enforces this with an unexported marker method on
+`CanonicalObject`, on the reasoning that no other package can implement an
+interface it cannot name a method of.
+
+**Go promotes an embedded interface's method set, including unexported
+methods.** So this compiles, in any package:
+
+```go
+type forged struct {
+	objectmodel.CanonicalObject   // embedded, nil
+}
+var obj objectmodel.CanonicalObject = forged{}   // satisfies the type
+```
+
+Three forgeries, each defeating one more defence:
+
+| Forgery | Result before the fix |
+|---|---|
+| empty embedding | satisfies the type; **panics** the boundary on the first method call |
+| every method overridden, `Root()` nil | rejected — by the nil-Root check, not by the type |
+| **real node tree from a real materialization, attacker-chosen `CanonicalYAML()`** | **crossed the boundary** |
+
+The third is the finding. Every runtime check passed: non-nil object, non-nil
+root, truthful-looking version. The bytes a consumer would read violated INV-017
+(an origin holding both `yaml` and `schema`) and no materializer ever produced
+them.
+
+**Why it cannot be fixed as stated.** Interface embedding is a language
+property. No arrangement of unexported methods, sealed interfaces or build tags
+closes it: any package that can name the type can embed it. An unexported
+*struct* type returned as a concrete type would close it, but then the boundary
+could not be an interface at all, and modules could not be written against it.
+
+**What was done instead (go/module/module.go).** The boundary stops trusting the
+type and re-establishes the property that matters — that what a module READS has
+been validated:
+
+- it re-runs `ValidateCanonicalDocument` on the bytes, one parse per delivery
+- it recovers from panics, because a crash reachable from a module author is a
+  denial of service and worse than a rejection
+
+That closes all three forgeries. It does not make INV-032 true.
+
+**Suggestion.** Restate INV-032 to say what is achievable and what the boundary
+must therefore do. Something of the shape: the module input type MUST NOT be
+constructible by ordinary means, AND a boundary MUST NOT rely on the type alone
+— it MUST validate what it is handed and MUST NOT be crashable by it. An
+invariant that a conforming implementation cannot satisfy is worse than a weaker
+one it can, because the first teaches implementers that invariants are
+aspirational.
+
+Note for the Rust implementation: a private-field newtype in Rust genuinely is
+unconstructible outside its module, so Rust can satisfy the strong form where Go
+cannot. That asymmetry belongs in the specification rather than in a surprise
+during review — the two implementations will not be equally strong here, and
+`docs/spec-vector-map.md` already hints at it without saying so.

@@ -1,0 +1,14 @@
+---
+id: validation/006_model_version_inside_object
+title: A model version carried inside the object is rejected
+invariants: [INV-033, INV-021, INV-034]
+description: >-
+  Model 0.2 moved the version to the hand-off frame. This vector fixes the
+  direction: an object that carries the version as a member is invalid, because
+  §2.1 closes the node grammar to `values`, `origin` and the primitive set, and
+  `cic` is none of those.
+
+  In 0.1 this vector asserted the opposite — that an object WITHOUT a version
+  must be rejected. That requirement was unsatisfiable: satisfying it produced
+  something the same document refused to call a CIC node. See
+  docs/spec-defects.md SD-017.
