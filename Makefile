@@ -111,9 +111,25 @@ MANIFEST_GEN = git ls-files -z | xargs -0 sha256sum | grep -v "MANIFEST.sha256" 
 # from a 261-entry manifest covering 263 tracked files, and this gate exited 0.
 # Diffing checks the file set and the hashes in one comparison, so an added,
 # a removed and an altered file all fail the same way.
+#
+# It also refuses to run over a tree with untracked files, which is not
+# fussiness. MANIFEST_GEN uses `git ls-files`, so an untracked file is invisible
+# to BOTH sides of the comparison — it is absent from the generated manifest and
+# absent from the committed one, and they agree. The local gate then passes
+# while CI, where the same files are committed and therefore tracked, fails.
+#
+# That happened one commit after this gate was written, to its author: three new
+# vector directories were unstaged, `make ci` was green locally, and CI rejected
+# nine files missing from the manifest. A gate that answers differently
+# depending on staging state is worse than one that refuses to answer.
 manifest-verify: ##manifest-verify
 	@echo "--- Verifying repository manifest ---"
 	@test -f MANIFEST.sha256 || { echo "MANIFEST.sha256 is missing"; exit 1; }
+	@U="$$(git ls-files --others --exclude-standard)"; \
+	  test -z "$$U" || { echo "untracked files present; this gate cannot see them,"; \
+	                     echo "so a pass here would not mean what CI will say:"; \
+	                     printf '  %s\n' $$U; \
+	                     echo "stage them (or ignore them) and re-run"; exit 1; }
 	@docker compose exec -T builder sh -c '$(MANIFEST_GEN)' > /tmp/MANIFEST.expected
 	@diff -u MANIFEST.sha256 /tmp/MANIFEST.expected > /tmp/MANIFEST.diff \
 		|| { echo "MANIFEST.sha256 does not describe the working tree:"; \
