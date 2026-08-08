@@ -1,0 +1,10 @@
+---
+error:
+  code: E_ORIGIN_GRAMMAR
+  invariant: INV-013
+  stage: final-validation
+  path: $.values.mtu.origin
+  detail: >-
+    origin [sealed, schema, schema] is not one of the four forms of SPEC 5.2.
+    The fourth form is a two-term sequence; a third term makes it a sequence the
+    grammar does not produce.

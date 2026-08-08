@@ -1,6 +1,9 @@
 package objectmodel
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // validateDocument is SPEC §8.7.
 //
@@ -135,6 +138,12 @@ func validateOrigin(v any, path string) error {
 			"origin must not be empty; the node's authority is unattributable")
 	}
 
+	// shape records the term kinds in the order they appear, so the sequence
+	// itself can be matched against the grammar once every term is known to be
+	// well formed. The boolean flags alongside it answer only "does this term
+	// appear anywhere", which is a strictly weaker question — see the grammar
+	// check at the end.
+	var shape []string
 	var hasYAML, hasSchema, hasSealed bool
 	for _, t := range terms {
 		switch tv := t.(type) {
@@ -142,8 +151,10 @@ func validateOrigin(v any, path string) error {
 			switch tv {
 			case string(OriginYAML):
 				hasYAML = true
+				shape = append(shape, "yaml")
 			case string(OriginSchema):
 				hasSchema = true
+				shape = append(shape, "schema")
 			case string(OriginSealed):
 				// INV-020 — origin `sealed` is always a 2-arity constructor.
 				// The bare token belongs to the aggregate slot-mode vocabulary.
@@ -172,6 +183,7 @@ func validateOrigin(v any, path string) error {
 					"a sealed term must carry both template and path")
 			}
 			hasSealed = true
+			shape = append(shape, "sealed")
 		default:
 			return newError(CodeOriginGrammar, "INV-013", StageFinalValidation, path,
 				"an origin term must be `yaml`, `schema`, or a sealed constructor")
@@ -190,5 +202,49 @@ func validateOrigin(v any, path string) error {
 		return newError(CodeOriginSealedYAMLConflict, "INV-016", StageFinalValidation, path,
 			"origin holds both `sealed` and `yaml`; a yaml-sourced value below a sealed boundary is structurally illegal")
 	}
-	return nil
+
+	// INV-013 — the sequence must BE one of the four productions of §5.2, not
+	// merely be built from legal terms that break none of the exclusion rules.
+	//
+	// Everything above this point asks presence questions: is `yaml` here, is
+	// `schema` here. That vocabulary cannot express arity or order, so it
+	// accepted forms the grammar does not contain — `[yaml, yaml]`,
+	// `[schema, schema]`, `[sealed(t,p), sealed(t,p)]`, `[schema, sealed(t,p)]`
+	// with the terms reversed. Each one is a distinct origin no rule forbade
+	// and the grammar never produced, in the member that says who authored a
+	// value.
+	//
+	// The corpus could not see it either. INV-013 says "exactly four forms" and
+	// was covered by four vectors, one per form — every one of them positive.
+	// "These four are accepted" was tested; "nothing else is" was not, and
+	// check_spec_vectors.py cannot tell the difference because it checks that a
+	// mapping exists, not what the mapping proves.
+	//
+	// The exclusion checks above are now implied by this match and are kept
+	// deliberately: they name the specific invariant a reader violated
+	// (INV-016, INV-017) instead of reporting that the sequence was not in the
+	// grammar, and the vectors assert those codes.
+	switch {
+	case matches(shape, "yaml"),
+		matches(shape, "schema"),
+		matches(shape, "sealed"),
+		matches(shape, "sealed", "schema"):
+		return nil
+	}
+	return newError(CodeOriginGrammar, "INV-013", StageFinalValidation, path,
+		fmt.Sprintf("origin [%s] is not one of the four forms of SPEC §5.2: "+
+			"[yaml] | [schema] | [sealed(t,p)] | [sealed(t,p), schema]",
+			strings.Join(shape, ", ")))
+}
+
+func matches(shape []string, want ...string) bool {
+	if len(shape) != len(want) {
+		return false
+	}
+	for i := range want {
+		if shape[i] != want[i] {
+			return false
+		}
+	}
+	return true
 }

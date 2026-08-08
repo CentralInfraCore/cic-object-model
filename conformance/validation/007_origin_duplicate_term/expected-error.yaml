@@ -1,0 +1,10 @@
+---
+error:
+  code: E_ORIGIN_GRAMMAR
+  invariant: INV-013
+  stage: final-validation
+  path: $.values.mtu.origin
+  detail: >-
+    origin [yaml, yaml] is not one of the four forms of SPEC 5.2. Each term is
+    a legal origin term and no exclusion rule is violated; the sequence is
+    still not one the grammar produces.
