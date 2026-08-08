@@ -29,6 +29,13 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      # BuildKit layer cache. Local by default and harmless when the directory
+      # does not exist; CI points BUILDX_CACHE at a path it restores from the
+      # Actions cache, which is where ~48s of every run used to go.
+      cache_from:
+        - type=local,src=${BUILDX_CACHE:-/tmp/.buildx-cache}
+      cache_to:
+        - type=local,dest=${BUILDX_CACHE:-/tmp/.buildx-cache},mode=max
     # Run as the current host user to avoid file permission issues
     # on mounted volumes.
     user: "${UID:-1000}:${GID:-1000}"

@@ -1,91 +1,88 @@
 ---
 name: CI
 
+# Pre-PR feedback on work branches. This list is a convenience, not the gate —
+# it depends on branch naming, and a namespace nobody thought to register here
+# silently gets nothing (that is how `verify/**` went uncovered).
 on:
   push:
     branches:
       - main
       - devel
+      - feat/**
       - feature/**
+      - fix/**
+      - chore/**
+      - docs/**
+      - verify/**
+  # The actual gate: nothing reaches an integration branch through a PR without
+  # a run, regardless of what the source branch is called. `devel` is listed for
+  # exactly the case that got through — a `verify/**` -> `devel` PR matched
+  # neither trigger, so a broken MANIFEST.sha256 merged unaudited (#23, caught
+  # only by the `devel` push run afterwards and then by the release PR #24).
+  # Cost of this: a `feature/**` -> `devel` PR now runs twice, once per event.
+  # Paying ~3 CI-minutes for a gate that does not depend on naming discipline.
   pull_request:
     branches:
       - main
       - devel
 
+# A force-push supersedes the run it interrupted. Without this the old run keeps
+# burning a runner and the PR waits on a result nobody wants.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  lint_and_test:
+  # There is deliberately one job, and it has almost no steps.
+  #
+  # What CI runs is `make ci`, which is defined in mk/ci.mk and runs identically
+  # on a laptop. A gate that only exists in this file cannot be reproduced
+  # locally, and a developer who cannot reproduce a failure will start guessing.
+  #
+  # Everything below is runner plumbing: checkout, cache, artifact upload. If a
+  # step here decides pass or fail, it is in the wrong place.
+  ci:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Export host UID/GID for docker compose
-        run: |
-          echo "UID=$(id -u)" >> "$GITHUB_ENV"
-          echo "GID=$(id -g)" >> "$GITHUB_ENV"
+      # 48 of the ~100 seconds a run used to take was rebuilding an image whose
+      # Dockerfile rarely changes. buildx writes its layers to the Actions cache
+      # and `make build` picks them up.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Pre-create bind-mount directories owned by the runner user
-        run: mkdir -p p_venv .pip-cache
+      - name: Restore Docker layer cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: buildx-${{ runner.os }}-${{ hashFiles('Dockerfile', 'docker-compose.yml') }}
+          restore-keys: |
+            buildx-${{ runner.os }}-
 
-      - name: Build Docker images
-        run: make build
+      # The other 15 seconds: pip resolving and downloading the same 40 packages
+      # every run. Keyed on the lock file, so a dependency change invalidates it
+      # and nothing else does.
+      - name: Restore Python dependency cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            .pip-cache
+            p_venv
+          key: pydeps-${{ runner.os }}-${{ hashFiles('requirements.txt', 'requirements.in') }}
+          restore-keys: |
+            pydeps-${{ runner.os }}-
 
-      - name: Start builder container
-        run: docker compose up -d builder
-
-      - name: Generate and check requirements.txt for drift
-        run: |
-          make infra.deps
-          git diff --exit-code requirements.txt
-
-      - name: Verify repository manifest
-        run: make manifest-verify
-
-      - name: Check internal documentation links
-        run: make docs.link-check
-
-      - name: Run code quality checks
-        run: make check
-
-      # ---- Spec integrity ----------------------------------------------
-      # SPEC.md's normative sentences and the vector corpus must not drift
-      # apart. This gate fails if an INV-nnn is claimed covered by a vector
-      # directory that does not exist, or if a vector references an unknown
-      # invariant. It runs with no implementation present — it checks the
-      # spec/vector mapping, not conformance results.
-      - name: Verify SPEC <-> vector mapping
-        run: docker compose exec -T builder python tools/check_spec_vectors.py
-
-      # ---- Reference implementations -----------------------------------
-      # Both steps are conditional: neither go/ nor rust/ is populated by
-      # the spec job. They activate when the cic-object-model-go and
-      # cic-object-model-rust sub-jobs land. Guarding on the manifest file
-      # keeps CI honest — a missing implementation is skipped visibly, not
-      # silently passed.
-      - name: Go quality gate (go/)
-        if: hashFiles('go/go.mod') != ''
-        run: make golang.quality
-
-      - name: Go conformance run
-        if: hashFiles('go/go.mod') != ''
-        run: make golang.test
-
-      - name: Rust quality gate (rust/)
-        if: hashFiles('rust/Cargo.toml') != ''
-        run: make rust
-
-      # ---- Cross-implementation agreement ------------------------------
-      # The point of two implementations: they must produce identical
-      # output for every vector. Only meaningful once both exist.
-      - name: Cross-implementation conformance agreement
-        if: hashFiles('go/go.mod') != '' && hashFiles('rust/Cargo.toml') != ''
-        run: make conformance
-
-      - name: Run Python tests and generate coverage report
-        run: make test
+      # The gate. One command, the same one a developer runs.
+      - name: make ci
+        run: make ci
 
       - name: Upload coverage report artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: html-coverage-report
           path: htmlcov/
+          if-no-files-found: ignore

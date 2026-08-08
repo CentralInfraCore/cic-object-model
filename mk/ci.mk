@@ -1,0 +1,95 @@
+# mk/ci.mk — the CI pipeline, as make targets.
+#
+# The workflow file must not contain steps of its own. What CI runs is what
+# `make ci` runs, so a failure is reproducible locally with one command and
+# nobody has to read YAML to find out what the gate actually checks.
+#
+# The division of labour is deliberate:
+#
+#   this file          WHAT runs, and in what order
+#   .github/workflows  only the plumbing a runner needs — checkout, cache
+#                      restore/save, artifact upload
+#
+# Anything that decides pass or fail belongs here.
+#
+# Everything runs in the dockerized builder (mk/infra.mk), so the host needs
+# only docker and make. No Go, no Python, no yamllint on the host.
+
+.PHONY: ci ci.setup ci.gates ci.deps-drift ci.spec ci.impl ci.security ci.local
+
+# UID/GID are exported so the builder writes files the host user owns. CI used
+# to set these with a raw shell step; doing it here means a local run and a CI
+# run mount the same way.
+export UID ?= $(shell id -u)
+export GID ?= $(shell id -g)
+
+# ci is the whole gate. CI calls exactly this, and so can you.
+ci: ci.setup ci.deps-drift ci.gates ci.spec ci.impl
+	@echo ""
+	@echo "=== ci: all gates passed ==="
+
+# ci.local is ci plus the things a runner does around it, for someone who wants
+# the full CI experience on a laptop without pushing.
+ci.local: ci
+	@echo "--- Local extras (CI gets these from the runner) ---"
+	@$(MAKE) infra.coverage
+
+# ---------------------------------------------------------------------------
+# Setup
+# ---------------------------------------------------------------------------
+
+# ci.setup prepares the dockerized environment. The bind-mount directories are
+# created before compose runs: docker would otherwise create them as root and
+# every later step would fail on permissions.
+ci.setup:
+	@echo "--- CI setup: bind-mount dirs, images, builder, dependencies ---"
+	@mkdir -p p_venv .pip-cache
+	@$(MAKE) build
+	@docker compose up -d builder
+	@$(MAKE) infra.deps
+
+# ci.deps-drift fails if requirements.txt is not what requirements.in compiles
+# to. A drifted lock file means CI and the developer are installing different
+# things, which is the kind of difference that only shows up as a mystery.
+ci.deps-drift:
+	@echo "--- Dependency lock drift ---"
+	@git diff --exit-code requirements.txt \
+		|| { echo "requirements.txt is not in sync with requirements.in — run 'make infra.deps' and commit the result"; exit 1; }
+
+# ---------------------------------------------------------------------------
+# Gates
+# ---------------------------------------------------------------------------
+
+# ci.gates is everything that holds for this repository whether or not an
+# implementation exists: integrity, links, code quality, security.
+ci.gates: manifest-verify docs.link-check check ci.security
+
+# ci.security runs the scanners as their own step rather than hiding inside
+# `check`. A security finding should be legible as a security finding.
+ci.security:
+	@echo "--- Security scan ---"
+	@$(MAKE) infra.security
+
+# ci.spec checks that SPEC.md's normative sentences and the vector corpus have
+# not drifted apart. It runs with no implementation present: it checks the
+# spec/vector MAPPING, not conformance results.
+ci.spec:
+	@echo "--- SPEC <-> vector mapping ---"
+	@docker compose exec -T builder python tools/check_spec_vectors.py
+
+# ci.impl runs whatever implementations are present. A missing implementation
+# is skipped visibly — `conformance` fails rather than passing vacuously when
+# nothing is there to run the vectors.
+ci.impl:
+	@echo "--- Reference implementations ---"
+	@if [ -f go/go.mod ]; then \
+		$(MAKE) golang.quality && $(MAKE) golang.test; \
+	else \
+		echo "go/ absent — skipped"; \
+	fi
+	@if [ -f rust/Cargo.toml ] && [ -f mk/rust.mk ]; then \
+		$(MAKE) rust; \
+	else \
+		echo "rust/ absent — skipped"; \
+	fi
+	@$(MAKE) test

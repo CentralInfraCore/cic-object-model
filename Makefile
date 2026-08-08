@@ -9,6 +9,7 @@
 # ---- Includes ----
 include mk/infra.mk
 include mk/golang.mk
+include mk/ci.mk
 -include mk/rust.mk
 
 # ---- Phony ----
