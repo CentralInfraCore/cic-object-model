@@ -1,9 +1,11 @@
 # CIC Object Model — Normative Specification
 
-**Model version: 0.1**
-**Status: normative, unimplemented.** No implementation of this document exists
-yet. The conformance corpus in `conformance/` has been written but never
-executed. See [Conformance](#10-conformance) for what that means for the
+**Model version: 0.2**
+**Status: normative, one implementation.** The Go reference implementation in
+`go/` executes the conformance corpus. 0.2 is the revision that follows from
+running it: eighteen defects were found by implementing 0.1, and the ones that
+made 0.1 unsatisfiable are fixed here. See `docs/spec-defects.md` for the full
+list and [Conformance](#10-conformance) for what corpus status means for the
 reader.
 
 The key words MUST, MUST NOT, REQUIRED, SHALL, SHALL NOT, SHOULD, SHOULD NOT,
@@ -29,10 +31,23 @@ reference resolves, or who may write a field. All of that is decided before the
 module is reachable, by the pipeline in §8, and the result is the only thing a
 module can be handed (§9).
 
-**Out of scope for 0.1:** the CertPattern matching algorithm, the template
-repository/resolution protocol, the wire encoding of a canonical object, and
-the runtime policy-decision point. This document specifies the object model and
-its materialization, not the systems that consume it.
+**Out of scope for 0.2:** the CertPattern matching algorithm, the template
+repository/resolution protocol, the external reference syntax and its
+resolution (§8.2), the runtime policy-decision point, and **the resolution of
+`inherit` chains** (§6.4). This document specifies the object model and its
+materialization, not the systems that consume it.
+
+Two of those exclusions are load-bearing enough to state plainly, because 0.1
+carried obligations it could not meet:
+
+- **`inherit` is recorded, not resolved.** §6.4 defines what the tri-state
+  *means*; resolving a chain requires the policy-decision point, which is out of
+  scope. A canonical object therefore carries `inherit` verbatim. An
+  implementation that resolves it is not more conformant — it is inventing
+  semantics this document declines to define.
+- **The model version is not part of the object.** It belongs to the frame that
+  hands an object over (§11). 0.1 required the object to carry it, which the
+  node grammar of §2.1 has no room for; see `docs/spec-defects.md` SD-017.
 
 ---
 
@@ -74,12 +89,27 @@ itself a CIC node, with its own `values`, its own `origin`, and potentially its
 own primitives.
 
 This is what makes `network.values.mtu.access.read` a first-class, addressable
-object rather than a path into a YAML blob. It can be hashed, diffed,
-referenced from evidence, and governed by its own `access` — because it is a
-node like any other.
+object rather than a path into a YAML blob. It can be hashed, diffed, and
+referenced from evidence — because it is a node like any other.
+
+**The recursion does not stop at the primitive.** `access` being a node is not
+enough for the claim above: `access.read` must be a node too, and so must
+everything the schema declares beneath it. Otherwise
+`network.values.mtu.access.read` is exactly the path into a YAML blob that this
+section says it is not. 0.1 stopped one level early and the corpus recorded
+primitive payloads as raw mappings; see `docs/spec-defects.md` SD-003. INV-027
+(§7) is what carries this all the way down, and it applies inside primitive
+payloads exactly as it applies inside `values`.
 
 **INV-003** — Each primitive member of a node MUST itself be a CIC node
 satisfying INV-001 and INV-002.
+
+**INV-035** — Every schema-declared child of a primitive's payload MUST itself
+be a CIC node. A primitive's payload is not exempt from INV-027.
+
+*(Numbered 035 rather than inserted here: conformance vectors reference
+invariants by number, so the existing numbering is load-bearing and is never
+renumbered. New invariants are appended.)*
 
 ### 2.3 Why the recursion terminates
 
@@ -91,11 +121,24 @@ model is only implementable because two things bound it.
 `values`, `origin`, or any primitive. It is a value in the grammar of §5, not a
 node.
 
-**INV-005** — Primitive materialization MUST terminate. A schema declares a
-finite set of primitives per node, and the primitive-declaration graph MUST be
-acyclic: a primitive's own primitives MUST NOT, directly or transitively,
-re-declare the node they hang from. An implementation encountering such a cycle
-MUST reject the schema.
+**INV-005** — Primitive materialization MUST terminate, and in 0.2 it
+terminates **because the schema is finite**. A schema is a finite literal tree:
+it declares a finite set of primitives per node, each of whose declarations is
+itself finite. An implementation MUST reject a schema it cannot walk to a leaf
+in finitely many steps.
+
+A **repeated primitive name** on a declaration path is not a cycle and MUST NOT
+be rejected. Under INV-035 a primitive's payload is materialized like any other
+structure, so a path such as
+`mtu.access.read.contract.rules.guard.access` is a legitimate finite schema: the
+inner `access` hangs from `guard`, not from `mtu`. 0.1 relied on name-acyclicity
+instead, which was both unfalsifiable in the schema language of the day and
+strictly stronger than termination requires (`docs/spec-defects.md` SD-005).
+
+*Forward note, not a requirement of 0.2:* the schema language has no references
+(§8.2 is out of scope). If it gains them, finiteness stops being structural and
+a genuine cycle check over the declaration graph becomes necessary. That check
+belongs with the feature that creates the need for it.
 
 INV-004 is the reason `origin` is not a ninth atom (§6.2): it is the fixed
 point of the recursion, and a fixed point cannot be a member of the set it
@@ -180,9 +223,27 @@ but no `default` (§4.5).
 The schema is always available during materialization. It — not key inspection
 — decides the plane.
 
-**INV-008** — Whether a mapping is a node envelope or payload MUST be
-determined by the schema-declared shape at that position. An implementation
-MUST NOT decide this by inspecting keys alone.
+**INV-008** — **During materialization (§8.1–§8.6)**, whether a mapping is a
+node envelope or payload MUST be determined by the schema-declared shape at that
+position. An implementation MUST NOT decide this by inspecting keys alone.
+
+**INV-039** — Final validation (§8.7) of an object presented **without** its
+schema is structural and key-directed, and is explicitly weaker: a mapping is
+treated as a node iff it carries a `values` member. An implementation MUST NOT
+use this weaker rule while a schema is available.
+
+The scoping is not a loophole, it is an admission. Truth-table rows 7 and 8
+(§5.3) are unreachable from authoring input, so they can only be exercised
+against an already-canonical object — and validating an object nobody handed you
+a schema for leaves key inspection as the only available signal. 0.1 stated
+INV-008 globally while requiring exactly that walk, so every conforming
+implementation violated it on the validation path (`docs/spec-defects.md`
+SD-013).
+
+The residual risk is named rather than hidden: an **opaque** payload containing
+a `values` key whose value is a mapping will be mis-identified as a node by the
+weaker rule. Schema-less validation cannot distinguish the two, which is one
+more reason a schema should accompany an object wherever it can.
 
 Given the schema-declared shape at a position, for an authoring value `V`:
 
@@ -196,8 +257,18 @@ Given the schema-declared shape at a position, for an authoring value `V`:
 **INV-009** — At a structured-object position, a mapping MUST be treated as a
 node envelope if and only if it directly contains the key `values`.
 
-**INV-010** — A schema MUST NOT declare a child property named `values` at a
-structured-object position. A schema that does MUST be rejected.
+**INV-010** — A schema MUST NOT declare a child property named `values` **or
+`origin`** at a structured-object position. A schema that does MUST be rejected.
+
+`origin` joins the rule in 0.2 to close a contradiction rather than to add a
+restriction. INV-007 forbids an `origin` member in authoring input at any depth
+outside an opaque payload; INV-011 requires a payload key named `origin` to be
+preserved verbatim as domain data. With `origin` declarable, a schema could
+reach the position where both applied and they disagreed — measured in 0.1,
+producing a node named `origin` that carried its own `origin`
+(`docs/spec-defects.md` SD-014). Reserving the name at declaration time makes
+that position unreachable, which is the smaller fix: no existing invariant is
+weakened, and INV-011 keeps its meaning everywhere it can still apply.
 
 INV-010 is what makes INV-009 total: with the name unavailable to schema
 authors, no structured payload can accidentally present as an envelope. This is
@@ -311,7 +382,7 @@ insufficient: one template may be instantiated at many paths, and provenance
 that cannot distinguish them is not provenance.
 
 The `template` reference SHOULD be content-addressed (`$name@sha256:…`) so that
-origin is reproducible rather than merely descriptive. 0.1 does not require it.
+origin is reproducible rather than merely descriptive. 0.2 does not require it.
 
 ### 5.3 The truth table
 
@@ -463,10 +534,34 @@ access:
     inherit: true
 ```
 
+That is the **schema-side declaration**. What materializes from it is a node
+tree, not this mapping: `access` is a node, `access.values.read` is a node,
+`access.values.read.values.rules` is a node, down to the leaves (INV-027,
+INV-035). The shape above is what an author writes; §8 says what it becomes.
+
 The two operations are named **`read`** and **`modify`**.
 
 **INV-024** — `access` MUST declare operations under the names `read` and
 `modify`. `write` is not a valid operation name.
+
+#### Who guards the guard
+
+Once `access.read` is a node, the obvious next question is what governs *it* —
+and the answer is **`origin`, not a nested `access`**.
+
+**INV-036** — A node materialized from a schema declaration MUST carry
+`origin: [schema]`, and a node whose origin is `[schema]` MUST NOT be
+authorable from instance input: it cannot be created, replaced or deleted there,
+and neither can anything beneath it.
+
+That is the whole protection, and it is stronger than an `access` rule would be:
+`access` governs who may act on a value that exists, while `origin: [schema]`
+decides whether instance input may reach the position at all. A denied write is
+a decision; an unreachable position is not a decision anyone has to get right.
+
+`access.read.access` is therefore **not** part of 0.2. Admitting it would
+require the schema language to declare access on access declarations, which
+starts the regress this section exists to stop.
 
 **INV-025** — `inherit` is retained with its established tri-state semantics
 and MUST be placed per-operation, at `access.<operation>.inherit`:
@@ -487,6 +582,36 @@ INV-025 and INV-026 relocate two fields that a purely additive reading of the
 new structure would have dropped. Both mappings are lossless and are recorded
 in `docs/decision-delta.md`.
 
+#### `inherit` is recorded, not resolved
+
+**INV-037** — A canonical object MUST carry `inherit` verbatim, as declared. An
+implementation MUST NOT resolve inheritance chains, and MUST NOT substitute a
+computed effective rule for a declared one.
+
+This is a deliberate boundary, and 0.1 got it wrong in the other direction: §8.6
+ordered implementations to *"resolve `inherit` chains"* while §1 put the
+policy-decision point out of scope and `docs/decision-delta.md` declined to
+define what per-operation inheritance means when the two operations disagree. It
+was a MUST whose semantics the same document refused to supply
+(`docs/spec-defects.md` SD-012).
+
+Three questions have to be answered before resolution can be specified at all,
+and none of them is answered here:
+
+1. **What does a node inherit from?** Under INV-027 the tree now has many more
+   positions than 0.1 assumed. Does `mtu.access.read` inherit from `mtu.access`,
+   from `mtu`, from the enclosing object, or from nothing?
+2. **What happens when operations disagree?** `read.inherit: true` with
+   `modify.inherit: 0` is representable and appears in the corpus. It has no
+   defined meaning.
+3. **What is `0` reset *to*?** The tri-state's full-reset value recomputes from
+   the PolicySurface, which does not exist yet.
+
+Recording without resolving is what lets an object be complete and honest at the
+same time: everything declared is present and addressable, and nothing is
+asserted about an evaluation the model cannot yet perform. Resolution is a 0.3
+concern, and it arrives with the policy-decision point or not at all.
+
 ---
 
 ## 7. Object closure — the three rules
@@ -497,6 +622,19 @@ graph behind a bare `{}`. These three rules close it.
 **INV-027** — A structured object known to the schema MUST be recursively
 materialized: every schema-known child MUST become a CIC node. It MUST NOT
 survive as a raw `map<string, any>`.
+
+This holds **wherever the structure sits**, not only under `values`. A
+primitive's payload is a structured object known to the schema, so it
+materializes the same way: `access.values.read` is a node, `…read.values.rules`
+is a node, and so on to the leaves the schema declares (INV-035). 0.1 left these
+as raw mappings, which is why §2.2's claim about
+`network.values.mtu.access.read` was not true of any object 0.1 produced
+(`docs/spec-defects.md` SD-003).
+
+The cost is real and accepted: a canonical object is substantially larger than
+the authoring input that produced it. That is the trade the model makes —
+addressability, hashing, diffing and evidence references reach every declared
+position, or they reach none.
 
 **INV-028** — An object the schema explicitly declares **opaque** is a terminal
 value. No CIC semantics apply below it; its content MUST be preserved verbatim
@@ -562,13 +700,25 @@ MUST produce a byte-identical canonical object.
 Validating only at the end of the pipeline would let invalid input take part in
 expansion and resolution first, producing states that are hard to attribute.
 
-### 8.2 External reference resolution
+### 8.2 External reference resolution — **out of scope for 0.2**
+
+The schema language of 0.2 has no reference syntax, so this stage has nothing to
+resolve and no way to fail. 0.1 specified it as a stage with a MUST and a
+FAILURE clause anyway, which left an obligation no implementation could exercise
+and a stage identifier with no reachable use (`docs/spec-defects.md` SD-009).
+
+The stage keeps its position in the pipeline so that the ordering argument in §8
+stays intact and so that adding references later does not renumber the stages.
 
 - **INPUT:** structurally legal authoring tree
-- **OUTPUT:** tree with no unresolved external references
-- **MUST:** fully resolve every reference
-- **MUST NOT:** leave a reference for a module to resolve (§9)
-- **FAILURE:** unresolvable reference → reject
+- **OUTPUT:** the same tree, unchanged
+- **MUST:** nothing in 0.2
+- **MUST NOT:** invent a reference syntax; leave a reference for a module to
+  resolve (§9) once one exists
+- **FAILURE:** none reachable in 0.2
+
+When the reference syntax lands, this stage regains a MUST and a FAILURE, and
+INV-005's forward note (§2.3) becomes a requirement rather than a note.
 
 ### 8.3 Sealed / template expansion
 
@@ -602,10 +752,13 @@ expansion and resolution first, producing states that are hard to attribute.
 
 - **INPUT:** node tree with values materialized
 - **OUTPUT:** node tree with every schema-declared primitive materialized as a
-  node
-- **MUST:** materialize every declared primitive (INV-022); resolve `inherit`
-  chains for `access` (INV-025)
-- **MUST NOT:** admit an unknown primitive (INV-021)
+  node, **and every schema-declared child of a primitive's payload materialized
+  as a node** (INV-027, INV-035)
+- **MUST:** materialize every declared primitive (INV-022); recurse into
+  primitive payloads to the leaves the schema declares (INV-035); record
+  `inherit` verbatim (INV-037)
+- **MUST NOT:** admit an unknown primitive (INV-021); **resolve `inherit`
+  chains** (INV-037) — 0.1 required this and the semantics are undefined
 - **FAILURE:** unknown primitive, or a primitive whose semantics cannot be
   resolved → reject
 
@@ -671,37 +824,61 @@ if an invariant claims a vector that does not exist or a vector claims an
 invariant that does not exist. The check verifies the *mapping*, not
 conformance results.
 
-**Status of the corpus as of model 0.1: written, never executed.** No
-implementation exists in this repository. `make conformance` fails rather than
-passing vacuously when no implementation is present. A vector that has never
-run is a hypothesis, not evidence, and this specification does not claim
-otherwise.
+**Status of the corpus as of model 0.2: executed by one implementation.** The Go
+reference implementation runs every vector; the Rust implementation does not
+exist yet. `make conformance` fails rather than passing vacuously when no
+implementation is present. A vector that has never run is a hypothesis, not
+evidence — and until a second implementation runs this corpus, agreement between
+implementations is still an untested claim.
 
 ---
 
 ## 11. Versioning
 
-**INV-033** — Every canonical CIC object MUST carry the model version it
-conforms to.
-
-```yaml
-cic:
-  model: "0.1"
-```
+**INV-033** — Every canonical CIC object is handed over **at** a known model
+version. The version is a property of the hand-off, not a member of the object:
+it MUST be carried by whatever frame transfers the object — the serialization
+envelope, the call, the artifact record — and it MUST NOT appear inside the node
+tree.
 
 **INV-034** — A module MUST declare the model version it consumes, and a host
 MUST NOT hand a module an object of a version the module has not declared.
+
+The two are one rule stated from both ends: INV-033 says the version travels
+with the object, INV-034 says the receiver checks it.
+
+0.1 said something different and unsatisfiable: that the *object* must carry the
+version. §2.1 closes the node grammar to `values`, `origin` and the primitive
+set, so there was nowhere in an object to put it, and the corpus invented a
+`cic:` member on the root — producing something that, by this document's own
+definition, was not a CIC node. The set of objects satisfying 0.1's INV-033 was
+empty (`docs/spec-defects.md` SD-017). Note also that `cic` appeared exactly once
+in 0.1, inside a code block, and was never defined as a construct: a
+specification must not introduce one by example.
 
 Modules do not claim to support a YAML dialect; they consume a numbered object
 model. This is the semantic equivalent of an ABI, and it is versioned from the
 first day rather than being called `latest` and pinned retroactively.
 
+### 11.1 How a version increment arrives
+
 Within 0.x, any change to a normative statement in this document is a version
 increment and MUST arrive in a single change together with its conformance
-vectors and both implementations. Keeping the spec, the vectors, and the two
-implementations in one repository is deliberate: it makes it physically awkward
-to change one implementation's semantics without the other and the corpus
-noticing.
+vectors and **every implementation that exists at that time**. Keeping the spec,
+the vectors, and the implementations in one repository is deliberate: it makes
+it physically awkward to change one implementation's semantics without the
+others and the corpus noticing.
+
+**INV-038** — A normative change MUST NOT be split across releases from its
+vectors, and MUST NOT land ahead of any implementation this repository ships.
+
+0.1 wrote "**both** implementations", which during bootstrap made the rule
+unsatisfiable in the other direction: only one implementation existed, so no
+defect in 0.1 could be fixed without first writing a second implementation
+against the known-defective specification. That is a deadlock created by a rule
+intended for the steady state (`docs/spec-defects.md` SD-018). The requirement is
+now stated against the implementations that exist, which is the property the
+rule was actually protecting.
 
 ---
 
@@ -741,8 +918,13 @@ noticing.
 | INV-030 | Materialization is deterministic | 8 |
 | INV-031 | Seven things a module MUST NOT receive | 9 |
 | INV-032 | Module input type constructible only by the materializer | 9 |
-| INV-033 | Canonical objects carry the model version | 11 |
+| INV-033 | The model version belongs to the hand-off, not the object | 11 |
 | INV-034 | Modules declare the model version they consume | 11 |
+| INV-035 | Schema-declared children of a primitive payload are nodes | 2.2 |
+| INV-036 | Schema-origin nodes are not authorable from instance input | 6.4 |
+| INV-037 | `inherit` is recorded verbatim, never resolved | 6.4 |
+| INV-038 | A normative change ships with its vectors and every implementation | 11.1 |
+| INV-039 | Schema-less final validation is key-directed and weaker | 4.3 |
 
 ---
 
