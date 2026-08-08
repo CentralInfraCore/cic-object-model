@@ -748,6 +748,9 @@ noticing.
 
 ## 13. Related documents
 
+- [`docs/spec-defects.md`](docs/spec-defects.md) — where this document is not
+  executable, measured by implementing it. **Read SD-017 before relying on
+  INV-033.**
 - [`docs/spec-vector-map.md`](docs/spec-vector-map.md) — every invariant to its
   vectors, or its unvectorizable justification
 - [`docs/decision-delta.md`](docs/decision-delta.md) — what this model changes
