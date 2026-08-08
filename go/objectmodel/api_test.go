@@ -39,9 +39,9 @@ func TestGetReachesTheAddressSpecClaims(t *testing.T) {
 
 	// The full depth the model promises: a named rule inside an access
 	// operation, four levels below the primitive.
-	n, ok := root.Get("$.values.mtu.access.read.rules.operator.effect")
+	n, ok := root.Get("$.values.mtu.access.values.read.values.rules.values.operator.values.effect")
 	if !ok {
-		t.Fatal("access.read.rules.operator.effect did not resolve")
+		t.Fatal("the §2.2 address did not resolve")
 	}
 	if v, _ := n.Scalar(); v != "allow" {
 		t.Fatalf("effect = %v, want allow", v)
@@ -53,7 +53,7 @@ func TestGetReachesTheAddressSpecClaims(t *testing.T) {
 	if !ok {
 		t.Fatal("relative address values.mtu did not resolve")
 	}
-	rel, ok := mtu.Get("access.read.rules.operator.effect")
+	rel, ok := mtu.Get("access.values.read.values.rules.values.operator.values.effect")
 	if !ok {
 		t.Fatal("relative address from mtu did not resolve")
 	}
@@ -81,9 +81,11 @@ func TestGetReportsMisses(t *testing.T) {
 	root := materializeVector(t, "materialization/001_origin_yaml").Root()
 	for _, addr := range []string{
 		"$.values.nonexistent",
-		"$.values.mtu.access",            // not declared on this vector
-		"$.values.mtu.shape.type.deeper", // past a leaf
-		"$.values.mtu.7",                 // index into a non-list
+		"$.values.mtu.access",                          // not declared on this vector
+		"$.values.mtu.shape.values.type.values.deeper", // past a leaf
+		"$.values.mtu.values[7]",                       // index into a non-list
+		"$.values.values.values.mtu",                   // a values step that names nothing
+		"$.values.mtu.values.access",                   // access is a primitive, not a payload child
 	} {
 		if _, ok := root.Get(addr); ok {
 			t.Errorf("Get(%q) resolved, want miss", addr)
@@ -113,7 +115,7 @@ func TestListTraversal(t *testing.T) {
 		t.Error("At(2) resolved on a 2-entry list")
 	}
 	// The same entry by address, so index addressing and At agree.
-	byAddr, ok := root.Get("$.values.addresses.0")
+	byAddr, ok := root.Get("$.values.addresses.values[0]")
 	if !ok || byAddr.Path() != first.Path() {
 		t.Fatal("index addressing disagrees with At(0)")
 	}

@@ -94,7 +94,7 @@ func construct(eff *effNode, authored any, authoredOK bool, content any, content
 		}
 		n.kind, n.origin = kindList, org
 		for i, e := range src {
-			ip := fmt.Sprintf("%s[%d]", path, i)
+			ip := fmt.Sprintf("%s.values[%d]", path, i)
 			var child *Node
 			var err error
 			if payloadOK {
@@ -142,7 +142,7 @@ func construct(eff *effNode, authored any, authoredOK bool, content any, content
 		for _, c := range eff.childOrder {
 			cv, cok := authoredChildren[c]
 			ct, ctok := contentChildren[c]
-			child, err := construct(eff.children[c], cv, cok, ct, ctok, path+"."+c, false)
+			child, err := construct(eff.children[c], cv, cok, ct, ctok, path+".values."+c, false)
 			if err != nil {
 				return nil, err
 			}

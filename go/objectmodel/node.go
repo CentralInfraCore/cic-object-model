@@ -125,62 +125,86 @@ func (n *Node) Primitives() []string {
 	return out
 }
 
-// Get resolves an address against this node and is the operation SPEC §2.2
-// promises: `network.values.mtu.access.read` is a first-class, addressable
-// object. Without it the claim is true of the data and unavailable to a caller,
+// Get resolves an address against this node (SPEC §2.5) and is the operation
+// §2.2 promises: every declared position is a first-class, addressable object. Without it the claim is true of the data and unavailable to a caller,
 // who has to hand-walk Child and Primitive to reach a position the model says
 // is addressable.
 //
 // The syntax is the one Error.Path already uses, so an address read out of a
 // rejection can be fed straight back in:
 //
-//	$.values.mtu.access.read     absolute, from the root of the object
-//	values.mtu.access            relative to this node
-//	$.values.addresses.0         a list entry, by index
+//	$.values.mtu.access               absolute — `mtu`'s access primitive
+//	$.values.mtu.access.values.read   the access payload's `read` child
+//	values.mtu                        relative to this node
+//	$.values.addresses.values[0]      a list entry
 //
-// A segment names a child of the payload, a primitive of the node, or — for a
-// list payload — an entry index. `values` is a segment like any other: it steps
-// into the payload, which is what makes an Error.Path resolvable.
+// `values` steps into the payload and is never optional; anything else is a
+// member of the node itself. That is the whole grammar, and it is what makes
+// an address unique (INV-040): without the mandatory step, `$.values.mtu` and
+// `$.values.values.values.mtu` would name the same node, and a primitive would
+// be indistinguishable from a payload child that shares its name.
 //
 // Get does not create anything and reports false for an address that does not
 // resolve. It is a reader, not a cursor.
 func (n *Node) Get(path string) (*Node, bool) {
 	cur := n
+	inPayload := false // did the previous segment step into the payload?
+
 	for _, seg := range splitPath(path) {
-		next, ok := cur.step(seg)
-		if !ok {
-			return nil, false
+		switch {
+		case inPayload:
+			// Only a payload child can follow a `values` step.
+			c, ok := cur.Child(seg)
+			if !ok {
+				return nil, false
+			}
+			cur, inPayload = c, false
+
+		case seg == "values":
+			// The payload step itself resolves nothing; the segment after it
+			// does. Keeping it as state rather than a node is what stops
+			// `$.values.values.mtu` from meaning `$.values.mtu`.
+			inPayload = true
+
+		default:
+			if i, ok := parseIndex(seg); ok {
+				// `values[i]` is the payload step and the entry in one token.
+				e, ok := cur.At(i)
+				if !ok {
+					return nil, false
+				}
+				cur = e
+				continue
+			}
+			// Anything else on a node is a member of the node: a primitive.
+			p, ok := cur.Primitive(seg)
+			if !ok {
+				return nil, false
+			}
+			cur = p
 		}
-		cur = next
+	}
+	if inPayload {
+		// A trailing `values` names the payload, which is not a node.
+		return nil, false
 	}
 	return cur, true
 }
 
-// step resolves one address segment: payload child, primitive, list index, or
-// the `values` step into the payload itself.
-func (n *Node) step(seg string) (*Node, bool) {
-	if seg == "values" {
-		// `values` addresses the payload. For a map or list node the payload is
-		// reached through the following segment, so `values` is a no-op step
-		// that keeps Error.Path addresses resolvable.
-		return n, true
+// parseIndex recognises the `values[i]` token of SPEC §2.5.
+func parseIndex(seg string) (int, bool) {
+	if !strings.HasPrefix(seg, "values[") || !strings.HasSuffix(seg, "]") {
+		return 0, false
 	}
-	if c, ok := n.Child(seg); ok {
-		return c, true
+	i, err := strconv.Atoi(seg[len("values[") : len(seg)-1])
+	if err != nil {
+		return 0, false
 	}
-	if p, ok := n.Primitive(seg); ok {
-		return p, true
-	}
-	if n.kind == kindList {
-		if i, err := strconv.Atoi(seg); err == nil {
-			return n.At(i)
-		}
-	}
-	return nil, false
+	return i, true
 }
 
-// splitPath turns an address into segments, tolerating the leading `$.` that
-// Error.Path carries.
+// splitPath turns an address into segments, tolerating the leading `$` that
+// Path() and Error.Path carry. `values[0]` stays one segment.
 func splitPath(path string) []string {
 	path = strings.TrimPrefix(path, "$")
 	path = strings.TrimPrefix(path, ".")

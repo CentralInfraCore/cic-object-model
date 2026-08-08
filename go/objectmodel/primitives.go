@@ -119,7 +119,7 @@ func primitiveNode(path string, payload any, org Origin) *Node {
 		for _, k := range v.keys {
 			child, _ := v.get(k)
 			n.order = append(n.order, k)
-			n.entries[k] = primitiveNode(path+"."+k, child, org)
+			n.entries[k] = primitiveNode(path+".values."+k, child, org)
 		}
 		return n
 	case map[string]any:

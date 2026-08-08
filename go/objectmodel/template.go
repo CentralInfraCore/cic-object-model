@@ -66,7 +66,7 @@ func buildEff(s *Schema, sch *schemaNode, sealed *sealedCtx, content any, hasCon
 	switch sch.shape {
 	case shapeObject:
 		for _, c := range sch.childOrder {
-			child, err := buildEff(s, sch.children[c], sealed, nil, false, path+"."+c, depth+1)
+			child, err := buildEff(s, sch.children[c], sealed, nil, false, path+".values."+c, depth+1)
 			if err != nil {
 				return nil, err
 			}

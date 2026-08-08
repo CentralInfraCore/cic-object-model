@@ -97,7 +97,7 @@ func nodeFromDefault(n *Node, lit any, org Origin) (*Node, error) {
 		}
 		n.kind = kindList
 		for i, e := range l {
-			child := &Node{path: fmt.Sprintf("%s[%d]", n.path, i), eff: n.eff.item}
+			child := &Node{path: fmt.Sprintf("%s.values[%d]", n.path, i), eff: n.eff.item}
 			filled, err := nodeFromDefault(child, e, org)
 			if err != nil {
 				return nil, err

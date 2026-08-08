@@ -120,10 +120,10 @@ func entryPayload(sch *schemaNode, v any, path string) error {
 				// undeclared scalar too, because accepting one would mean
 				// silently dropping authored data. See docs/spec-defects.md SD-008.
 				return newError(CodeUndeclaredObject, "INV-029", StageEntryValidation,
-					path+"."+k,
-					fmt.Sprintf("%s.%s is neither declared in the schema nor declared opaque", path, k))
+					path+".values."+k,
+					fmt.Sprintf("%s.values.%s is neither declared in the schema nor declared opaque", path, k))
 			}
-			if err := entryWalk(child, m[k], path+"."+k); err != nil {
+			if err := entryWalk(child, m[k], path+".values."+k); err != nil {
 				return err
 			}
 		}
@@ -142,7 +142,7 @@ func firstLeafPath(v any, path string) string {
 			return path
 		}
 		k := sortedKeys(m)[0]
-		return firstLeafPath(m[k], path+"."+k)
+		return firstLeafPath(m[k], path+".values."+k)
 	}
 	if l, ok := v.([]any); ok {
 		if len(l) == 0 {

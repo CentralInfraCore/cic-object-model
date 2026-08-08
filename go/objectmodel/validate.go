@@ -97,7 +97,7 @@ func validatePayload(v any, path string) error {
 		for _, k := range t.keys {
 			child, ok := t.vals[k].(*orderedMap)
 			if ok && child.has("values") {
-				if err := validateNode(child, path+"."+k, false); err != nil {
+				if err := validateNode(child, path+".values."+k, false); err != nil {
 					return err
 				}
 			}
@@ -106,7 +106,7 @@ func validatePayload(v any, path string) error {
 		for i, e := range t {
 			child, ok := e.(*orderedMap)
 			if ok && child.has("values") {
-				if err := validateNode(child, fmt.Sprintf("%s[%d]", path, i), false); err != nil {
+				if err := validateNode(child, fmt.Sprintf("%s.values[%d]", path, i), false); err != nil {
 					return err
 				}
 			}
