@@ -5,8 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"gopkg.in/yaml.v3"
-
 	"github.com/CentralInfraCore/cic-object-model/go/module"
 	"github.com/CentralInfraCore/cic-object-model/go/objectmodel"
 )
@@ -171,13 +169,24 @@ func TestCanonicalYAMLIsACopy(t *testing.T) {
 	obj := mustMaterialize(t,
 		[]byte("model: \"0.1\"\nroot:\n  shape: object\n  children:\n    mtu:\n      shape: scalar\n      scalar_type: integer\n      default: 1500\n"),
 		[]byte("{}\n"))
+	// Keep the original bytes before anything is allowed to touch them. The
+	// assertion below compares against these, not against a property they
+	// happen to have.
+	original := string(obj.CanonicalYAML())
+
 	first := obj.CanonicalYAML()
 	for i := range first {
 		first[i] = 'x'
 	}
-	second := obj.CanonicalYAML()
-	var doc any
-	if err := yaml.Unmarshal(second, &doc); err != nil {
-		t.Fatalf("the canonical object was mutated through CanonicalYAML: %v", err)
+
+	if second := string(obj.CanonicalYAML()); second != original {
+		t.Fatalf("the canonical object was mutated through CanonicalYAML\n--- got ---\n%s\n--- want ---\n%s",
+			second, original)
 	}
+
+	// This assertion used to be "second still parses as YAML", which cannot
+	// fail: a run of 'x' is a valid YAML scalar, so the test passed whether or
+	// not CanonicalYAML copied anything. tools/mutate.py found it — the
+	// `canonical-output-is-not-copied` mutation survived a suite that contained
+	// a test named for exactly that property.
 }

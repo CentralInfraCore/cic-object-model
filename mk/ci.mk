@@ -93,3 +93,38 @@ ci.impl:
 		echo "rust/ absent — skipped"; \
 	fi
 	@$(MAKE) test
+
+# ---------------------------------------------------------------------------
+# Deep verification — slower than the gate, run on demand or nightly
+# ---------------------------------------------------------------------------
+.PHONY: verify verify.fuzz verify.mutate
+
+# verify is everything the gate does not have time for. Each target below is
+# independently runnable during development; `make -j verify.fuzz verify.mutate`
+# works because they touch different things.
+verify: verify.fuzz verify.mutate
+
+# FUZZTIME is deliberately short by default so `make verify.fuzz` is usable in a
+# development loop. Raise it for a real hunt: FUZZTIME=10m make verify.fuzz
+FUZZTIME ?= 45s
+
+# What this asks is not "is the output right" — the corpus answers that. It asks
+# whether the library can be broken: made to panic, to hang, or to hand back
+# something that is neither a canonical object nor a proper error. The sharpest
+# property it checks is that the materializer's own output is accepted by its
+# own validator; the two were written independently and nothing else compares
+# them.
+verify.fuzz:
+	@echo "--- Fuzzing the materializer ($(FUZZTIME)) ---"
+	@docker compose exec -T builder sh -c 'cd /app/go && \
+		go test ./objectmodel/ -run FuzzMaterialize -fuzz FuzzMaterialize -fuzztime $(FUZZTIME)'
+	@echo "--- Fuzzing schema-less validation ($(FUZZTIME)) ---"
+	@docker compose exec -T builder sh -c 'cd /app/go && \
+		go test ./objectmodel/ -run FuzzValidateCanonicalDocument -fuzz FuzzValidateCanonicalDocument -fuzztime $(FUZZTIME)'
+
+# Breaks the code on purpose, one named change at a time, and requires the suite
+# to fail. A green suite proves the code passes the tests; this proves the tests
+# would notice if it did not.
+verify.mutate:
+	@echo "--- Mutation testing ---"
+	@python3 tools/mutate.py
