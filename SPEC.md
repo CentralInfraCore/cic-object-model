@@ -107,6 +107,25 @@ satisfying INV-001 and INV-002.
 **INV-035** — Every schema-declared child of a primitive's payload MUST itself
 be a CIC node. A primitive's payload is not exempt from INV-027.
 
+**Nodehood follows declaration, not data shape.** A position becomes a node
+because something declares it as a position — a schema child, an `item:` shape,
+or a key of a primitive's fixed structure (§6.4). It does not become a node
+merely by being a mapping or a list element.
+
+Two cases that look alike and are not:
+
+| | Declared? | Result |
+|---|---|---|
+| `addresses` with `item: {shape: scalar}` | the element position is declared | each element is a node (`materialization/008`) |
+| `access.read.rules.operator.subjects: [...]` | the list is declaration content; no element position is declared | `subjects` is a node, its entries are payload values |
+
+The second is deliberate. `subjects` is a CertPattern list whose matching
+algorithm is out of scope (§1), and its entries have no stable identity to
+address: `subjects[0]` is a position, not a name. §6.4 gives rules names for
+exactly this reason — `rules.operator` survives a reordering, `rules[0]` does
+not. Making anonymous list entries into nodes would hand out addresses that
+evidence must not rely on.
+
 *(Numbered 035 rather than inserted here: conformance vectors reference
 invariants by number, so the existing numbering is load-bearing and is never
 renumbered. New invariants are appended.)*

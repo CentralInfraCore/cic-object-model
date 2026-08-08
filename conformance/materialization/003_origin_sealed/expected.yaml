@@ -1,26 +1,30 @@
 ---
-cic:
-  model: "0.1"
 values:
   access_policy:
     values:
       enabled:
         values: false
-        origin:
-          - sealed:
-              template: $network-object
-              path: $.access.read
+        origin: [{sealed: {template: $network-object, path: $.access.read}}]
         shape:
           values:
-            type: scalar
-            scalar_type: boolean
+            type:
+              values: scalar
+              origin: [schema]
+            scalar_type:
+              values: boolean
+              origin: [schema]
           origin: [schema]
-    origin:
-      - sealed:
-          template: $network-object
-          path: $.access.read
+    origin: [{sealed: {template: $network-object, path: $.access.read}}]
     shape:
       values:
-        type: object
+        type:
+          values: object
+          origin: [schema]
       origin: [schema]
 origin: [yaml]
+shape:
+  values:
+    type:
+      values: object
+      origin: [schema]
+  origin: [schema]

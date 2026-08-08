@@ -1,16 +1,24 @@
 ---
-cic:
-  model: "0.1"
 values:
   checkbox:
     values:
-      values: [on, off]
+      values:
+      - true
+      - false
       default: false
       origin: user-supplied
       access: public
     origin: [yaml]
     shape:
       values:
-        type: opaque
+        type:
+          values: opaque
+          origin: [schema]
       origin: [schema]
 origin: [yaml]
+shape:
+  values:
+    type:
+      values: object
+      origin: [schema]
+  origin: [schema]

@@ -1,6 +1,4 @@
 ---
-cic:
-  model: "0.1"
 values:
   interface:
     values:
@@ -9,20 +7,36 @@ values:
         origin: [yaml]
         shape:
           values:
-            type: scalar
-            scalar_type: integer
+            type:
+              values: scalar
+              origin: [schema]
+            scalar_type:
+              values: integer
+              origin: [schema]
           origin: [schema]
       enabled:
         values: true
         origin: [schema]
         shape:
           values:
-            type: scalar
-            scalar_type: boolean
+            type:
+              values: scalar
+              origin: [schema]
+            scalar_type:
+              values: boolean
+              origin: [schema]
           origin: [schema]
     origin: [yaml]
     shape:
       values:
-        type: object
+        type:
+          values: object
+          origin: [schema]
       origin: [schema]
 origin: [yaml]
+shape:
+  values:
+    type:
+      values: object
+      origin: [schema]
+  origin: [schema]

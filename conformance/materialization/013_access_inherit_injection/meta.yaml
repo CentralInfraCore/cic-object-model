@@ -1,7 +1,7 @@
 ---
 id: materialization/013_access_inherit_injection
 title: access uses read/modify, per-operation inherit, read-only default_injection
-invariants: [INV-023, INV-024, INV-025, INV-026]
+invariants: [INV-023, INV-024, INV-025, INV-026, INV-035, INV-037]
 description: >-
   Carries the two D-011 fields the new structure would otherwise have dropped.
   inherit is per-operation and defaults to true (INV-025); default_injection

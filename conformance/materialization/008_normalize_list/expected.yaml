@@ -1,26 +1,40 @@
 ---
-cic:
-  model: "0.1"
 values:
   addresses:
     values:
-      - values: 10.0.0.1/24
-        origin: [yaml]
-        shape:
-          values:
-            type: scalar
-            scalar_type: string
-          origin: [schema]
-      - values: 10.0.0.2/24
-        origin: [yaml]
-        shape:
-          values:
-            type: scalar
-            scalar_type: string
-          origin: [schema]
+    - values: 10.0.0.1/24
+      origin: [yaml]
+      shape:
+        values:
+          type:
+            values: scalar
+            origin: [schema]
+          scalar_type:
+            values: string
+            origin: [schema]
+        origin: [schema]
+    - values: 10.0.0.2/24
+      origin: [yaml]
+      shape:
+        values:
+          type:
+            values: scalar
+            origin: [schema]
+          scalar_type:
+            values: string
+            origin: [schema]
+        origin: [schema]
     origin: [yaml]
     shape:
       values:
-        type: list
+        type:
+          values: list
+          origin: [schema]
       origin: [schema]
 origin: [yaml]
+shape:
+  values:
+    type:
+      values: object
+      origin: [schema]
+  origin: [schema]
