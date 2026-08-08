@@ -153,7 +153,8 @@ golang.coverage-html: ## Run tests with coverage (HTML)
 # A RATCHET, not a target. Raise it when coverage rises — never lower it to make
 # a change pass. If this trips, the answer is a test, not a smaller number.
 #
-# 56 -> 83 when objectmodel/surface_test.go and cmd/.../run_test.go landed.
+# 56 -> 83 with surface_test.go and run_test.go; 83 -> 90 with branches_test.go,
+# which reached the rejection paths the 26 vectors were never meant to cover.
 # EVERY exported symbol is now exercised; measured, not assumed:
 #
 #   go tool cover -func=... | awk '$3 == "0.0%"'  ->  main, sealedByMaterializer
@@ -170,7 +171,7 @@ golang.coverage-html: ## Run tests with coverage (HTML)
 # The rest of the gap to 100 is internal paths — nodeFromDefault, asMap,
 # firstLeafPath, encodeCanonical — reachable only from inputs the corpus does
 # not contain. Those are worth covering next, and are not an API concern.
-COVERAGE_MIN ?= 83
+COVERAGE_MIN ?= 90
 
 golang.coverage-threshold: golang.coverage ## Fail if coverage < $(COVERAGE_MIN)%
 	mkdir -p $(BUILD_DIR) && docker compose exec -T builder sh -c 'cd /app/$(GO_MODULE_DIR) && \

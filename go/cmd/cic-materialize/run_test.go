@@ -144,3 +144,45 @@ func capture(t *testing.T, target **os.File, f func()) string {
 	*target = orig
 	return <-done
 }
+
+// TestRunPartialFailures — the error paths between reading the schema and
+// handing the object over. Each is a distinct return that a caller can hit
+// without doing anything exotic.
+func TestRunPartialFailures(t *testing.T) {
+	dir := filepath.Join(corpusRoot, "materialization", "001_origin_yaml")
+
+	t.Run("the schema reads but the input does not", func(t *testing.T) {
+		// The earlier missing-file case returns at the schema; this one gets
+		// past it and fails on the second read.
+		_ = captureStdout(t, func() {
+			if err := run(filepath.Join(dir, "schema.yaml"), "/nonexistent", "", false); err == nil {
+				t.Error("a missing input file was not reported")
+			}
+		})
+	})
+
+	t.Run("delivery is refused for an undeclared model version", func(t *testing.T) {
+		// The module declares which version it consumes (INV-034). A schema at
+		// any other version materializes fine and must not be delivered — the
+		// object is good, the hand-off is not.
+		schema := filepath.Join(t.TempDir(), "schema.yaml")
+		body, err := os.ReadFile(filepath.Join(dir, "schema.yaml"))
+		if err != nil {
+			t.Fatalf("reading the vector schema: %v", err)
+		}
+		if err := os.WriteFile(schema, []byte(strings.Replace(string(body), "0.1", "9.9", 1)), 0o644); err != nil {
+			t.Fatalf("writing the temp schema: %v", err)
+		}
+
+		out := captureStdout(t, func() {
+			if err := run(schema, filepath.Join(dir, "input.yaml"), "", true); err == nil {
+				t.Error("delivery of an undeclared version was allowed")
+			}
+		})
+		// The object still went to stdout before the boundary refused it: the
+		// materialization succeeded, only the hand-off failed.
+		if !strings.Contains(out, "values:") {
+			t.Error("the canonical object was not written before the refusal")
+		}
+	})
+}

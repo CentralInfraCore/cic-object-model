@@ -42,6 +42,21 @@ func isEnvelope(shape string, v any) bool {
 }
 
 func entryWalk(sch *schemaNode, v any, path string) error {
+	// A list position whose schema declares no `item:` leaves nothing to walk
+	// into. Reaching here with a nil node used to dereference it and take the
+	// process down — a segmentation fault on authoring input, which is the
+	// worst possible answer to "your schema is incomplete".
+	//
+	// Found by objectmodel/branches_test.go, not by the fuzzer: producing a
+	// coherent schema that declares a list without an item shape, paired with
+	// an input that actually has entries there, is a narrow target for random
+	// mutation. 950,000 fuzz executions did not hit it; one hand-written case
+	// did. The two find different things and neither replaces the other.
+	if sch == nil {
+		return newError(CodeSchemaShapeMissing, "INV-027", StageEntryValidation, path,
+			"a list position declares no `item:` shape, so its entries cannot be validated")
+	}
+
 	// INV-019 — authoring is closed at and below a sealed boundary, and the
 	// rejection is structural and immediate: the traversal stops here rather
 	// than letting the value reach reference resolution or expansion.
@@ -77,7 +92,25 @@ func entryWalk(sch *schemaNode, v any, path string) error {
 				// internal structure of `access` only (§6.4); it is checked
 				// at §8.6, where primitive semantics are resolved.
 			default:
-				// Unknown envelope member — deferred to §8.6 (INV-021).
+				// Unknown envelope member — normally deferred to §8.6, where
+				// INV-021 rejects it with the whole node in hand.
+				//
+				// Unless the envelope carries no `values` at all. Then the node
+				// never materializes (§8.5: absent, undefaultable, not
+				// required = it does not exist), §8.6 never sees it, and what
+				// the author wrote is dropped in silence. Measured before the
+				// fix: `addrs: {a: 1}` at a list position produced
+				// `values: {}` — no error, no node, no data.
+				//
+				// Silent loss is the one outcome this model exists to prevent,
+				// so the deferral only holds while there is something left to
+				// defer to.
+				if _, hasValues := m["values"]; !hasValues {
+					return newError(CodeUnknownPrimitive, "INV-021", StageEntryValidation,
+						path+"."+k,
+						fmt.Sprintf("`%s` is not a primitive, and this envelope declares no `values`, "+
+							"so nothing here would survive materialization", k))
+				}
 			}
 		}
 		return nil

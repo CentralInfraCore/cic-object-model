@@ -249,10 +249,19 @@ func checkSchemaNode(n *schemaNode, path string) error {
 	// INV-010 — a schema must not declare a child named `values` at a
 	// structured object position. This is what makes INV-009 total.
 	if n.shape == shapeObject {
-		if _, ok := n.children["values"]; ok {
-			return newError(CodeSchemaReservedChildValues, "INV-010", StageSchemaLoad,
-				path+".values.values",
-				"a schema must not declare a child property named `values` at a structured object position; it would collide with the envelope discriminator")
+		// INV-010 reserves two names at declaration time. `origin` joined in
+		// 0.2 to close the INV-007/INV-011 contradiction (docs/spec-defects.md
+		// SD-014) — the specification was updated and this check was not, so
+		// for one revision the text forbade something the implementation
+		// allowed. Found by objectmodel/branches_test.go.
+		for _, reserved := range []string{"values", "origin"} {
+			if _, ok := n.children[reserved]; ok {
+				return newError(CodeSchemaReservedChildValues, "INV-010", StageSchemaLoad,
+					path+".values."+reserved,
+					fmt.Sprintf("a schema must not declare a child property named `%s` at a structured "+
+						"object position; `values` would collide with the envelope discriminator and "+
+						"`origin` with the authoring prohibition of INV-007", reserved))
+			}
 		}
 	}
 
