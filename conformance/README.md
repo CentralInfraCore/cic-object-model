@@ -49,7 +49,7 @@ the origin truth table would be unfalsifiable.
 Deliberately minimal — just enough to exercise the model:
 
 ```yaml
-model: "0.1"
+model: "0.2"
 root:
   shape: object
   children:
@@ -93,7 +93,7 @@ on every node. This is verbose by design — it is the model.
 
 ```yaml
 cic:
-  model: "0.1"
+  model: "0.2"
 values:
   mtu:
     values: 9000

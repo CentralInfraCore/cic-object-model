@@ -20,6 +20,24 @@ var primitiveSet = []string{
 
 func isPrimitiveName(k string) bool { return slices.Contains(primitiveSet, k) }
 
+// ModelVersion is the model version this package implements. It is the same
+// number SPEC.md declares on its third line, and the two are held together by
+// TestVersionIdentity in go/module/version_test.go rather than by anyone
+// remembering to keep them in step.
+//
+// The 0.2 revision was written into SPEC.md and propagated nowhere: the schema
+// index, the project descriptor, both module constants and all twenty vector
+// schemas stayed at 0.1, so 0.2 semantics ran and were tested under a 0.1
+// label. Nothing detected it because nothing compared the declarations, and
+// LoadSchema accepted any string at all.
+const ModelVersion = "0.2"
+
+// supportedModelVersions are the versions LoadSchema will accept. INV-033 says
+// an object is handed over at a KNOWN version; a schema at an unknown one
+// cannot produce such an object, so it is refused at load rather than
+// materialized into something no receiver may accept.
+var supportedModelVersions = []string{ModelVersion}
+
 // Shapes the vector schema language declares (conformance/README.md).
 const (
 	shapeScalar = "scalar"
@@ -95,8 +113,16 @@ func LoadSchema(data []byte) (*Schema, error) {
 	}
 
 	s := &Schema{templates: map[string]map[string]*templateEntry{}}
-	if mv, ok := m["model"]; ok && mv != nil {
-		s.model = fmt.Sprint(mv)
+	mv, ok := m["model"]
+	if !ok || mv == nil {
+		return nil, newError(CodeUnsupportedModelVersion, "INV-033", StageSchemaLoad, "$.model",
+			"schema declares no model version")
+	}
+	s.model = fmt.Sprint(mv)
+	if !slices.Contains(supportedModelVersions, s.model) {
+		return nil, newError(CodeUnsupportedModelVersion, "INV-033", StageSchemaLoad, "$.model",
+			fmt.Sprintf("model version %q is not supported; this implementation is %s",
+				s.model, ModelVersion))
 	}
 
 	rootRaw, ok := m["root"]

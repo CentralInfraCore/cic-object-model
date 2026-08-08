@@ -1,5 +1,5 @@
 ---
-model: "0.1"
+model: "0.2"
 root:
   shape: object
   children:

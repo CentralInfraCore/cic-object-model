@@ -4,7 +4,7 @@
 # the file the release process hashes and signs.
 metadata:
   name: cic-object-model
-  version: "0.1"
+  version: "0.2"
   description: >-
     Machine-readable companions to SPEC.md. SPEC.md remains the authority:
     these schemas encode what can be encoded in JSON Schema, which is the node
@@ -15,7 +15,7 @@ metadata:
   owner: Gabor Zoltan Sinko
 
 spec:
-  model_version: "0.1"
+  model_version: "0.2"
   normative_document: ../SPEC.md
   schemas:
     - id: node

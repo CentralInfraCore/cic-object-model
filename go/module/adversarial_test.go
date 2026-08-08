@@ -39,7 +39,7 @@ type forgedWithPayload struct {
 	objectmodel.CanonicalObject
 }
 
-func (forgedWithPayload) ModelVersion() string { return "0.1" }
+func (forgedWithPayload) ModelVersion() string { return "0.2" }
 func (forgedWithPayload) CanonicalYAML() []byte {
 	return []byte("values:\n  mtu:\n    values: 9000\n    origin: [yaml, schema]\norigin: [yaml]\n")
 }
@@ -95,7 +95,7 @@ type forgedMixed struct {
 	realRoot *objectmodel.Node
 }
 
-func (forgedMixed) ModelVersion() string { return "0.1" }
+func (forgedMixed) ModelVersion() string { return "0.2" }
 func (forgedMixed) CanonicalYAML() []byte {
 	// Origin holds both yaml and schema, which INV-017 forbids. No materializer
 	// would ever emit this.
@@ -106,7 +106,7 @@ func (f forgedMixed) Root() *objectmodel.Node { return f.realRoot }
 // TestForgeryWithRealNodeTree is the attack that satisfies every runtime check.
 func TestForgeryWithRealNodeTree(t *testing.T) {
 	legit := mustMaterialize(t,
-		[]byte("model: \"0.1\"\nroot:\n  shape: object\n  children:\n    mtu:\n      shape: scalar\n      scalar_type: integer\n      default: 1500\n"),
+		[]byte("model: \"0.2\"\nroot:\n  shape: object\n  children:\n    mtu:\n      shape: scalar\n      scalar_type: integer\n      default: 1500\n"),
 		[]byte("{}\n"))
 
 	var obj objectmodel.CanonicalObject = forgedMixed{realRoot: legit.Root()}

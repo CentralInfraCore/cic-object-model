@@ -15,7 +15,7 @@ import (
 
 // ModelVersion is the object model version this module declares it consumes
 // (SPEC INV-034). A host must not hand it an object of any other version.
-const ModelVersion = "0.1"
+const ModelVersion = "0.2"
 
 // ErrNilObject is returned for a nil CanonicalObject, or for one whose methods
 // cannot be called.

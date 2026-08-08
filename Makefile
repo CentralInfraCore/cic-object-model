@@ -97,14 +97,34 @@ test: infra.test
 # Manifest Management
 # =============================================================================
 
+# MANIFEST_GEN is the single definition of what the manifest IS: one line per
+# tracked file, hashed, sorted. Both targets below run exactly this, so the
+# writer and the checker cannot drift apart.
+MANIFEST_GEN = git ls-files -z | xargs -0 sha256sum | grep -v "MANIFEST.sha256" | LC_ALL=C sort
+
+# manifest-verify regenerates the manifest and diffs it against the committed
+# one, rather than running `sha256sum -c` over it.
+#
+# `sha256sum -c` verifies every file the manifest LISTS and is silent about
+# every file it does not. A tracked file missing from the manifest therefore
+# passed: the repository shipped with go/objectmodel/branches_test.go absent
+# from a 261-entry manifest covering 263 tracked files, and this gate exited 0.
+# Diffing checks the file set and the hashes in one comparison, so an added,
+# a removed and an altered file all fail the same way.
 manifest-verify: ##manifest-verify
 	@echo "--- Verifying repository manifest ---"
-	@docker compose exec builder sh -c 'test -f MANIFEST.sha256 && sha256sum -c MANIFEST.sha256'
+	@test -f MANIFEST.sha256 || { echo "MANIFEST.sha256 is missing"; exit 1; }
+	@docker compose exec -T builder sh -c '$(MANIFEST_GEN)' > /tmp/MANIFEST.expected
+	@diff -u MANIFEST.sha256 /tmp/MANIFEST.expected > /tmp/MANIFEST.diff \
+		|| { echo "MANIFEST.sha256 does not describe the working tree:"; \
+		     grep '^-[^-]' /tmp/MANIFEST.diff | sed 's|^-|  in manifest, not in tree (or changed): |'; \
+		     grep '^+[^+]' /tmp/MANIFEST.diff | sed 's|^+|  in tree, not in manifest (or changed): |'; \
+		     echo "run 'make manifest-update'"; exit 1; }
+	@echo "manifest describes all $$(wc -l < MANIFEST.sha256) tracked files"
 
 manifest-update: ##manifest-update
 	@echo "--- Updating repository manifest ---"
-	@docker compose exec builder sh -c 'git ls-files -z \
-		| xargs -0 sha256sum' | grep -v "MANIFEST.sha256" | LC_ALL=C sort > MANIFEST.sha256
+	@docker compose exec -T builder sh -c '$(MANIFEST_GEN)' > MANIFEST.sha256
 	@echo "MANIFEST.sha256 updated"
 
 # =============================================================================

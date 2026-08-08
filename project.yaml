@@ -5,7 +5,7 @@ metadata:
     Normative CIC object model specification, conformance vectors, and the
     Go + Rust reference implementations. SPEC.md is the authority; the
     implementations are subordinate to it.
-  version: 0.1.0
+  version: 0.2.0
   license: CC-BY-NC-SA-4.0
   main_branch: main
   owner: Gabor Zoltan Sinko
