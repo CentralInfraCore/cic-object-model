@@ -187,7 +187,11 @@ properties:
       repo_type:
         type: string
         description: "The type of repository. Controls which compiler commands are available."
-        enum: ["schema", "workflow", "module"]
+        # `spec` was missing, so project.yaml — which declares repo_type: spec —
+        # could not validate against the schema it names as its own. Audit claim
+        # F-02: the descriptor and its schema disagreed, and nothing ran the
+        # validation that would have said so.
+        enum: ["schema", "workflow", "module", "spec"]
       component_name:
         type: string
         description: "Release component name (tools/infra.py: _check_base_branch_and_version)."

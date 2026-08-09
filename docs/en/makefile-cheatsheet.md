@@ -18,10 +18,26 @@ This file provides a comprehensive list of all available `make` commands and the
 - `make typecheck`: Runs static type analysis on the Python codebase using `mypy`.
 - `make check`: A convenience target that runs `fmt`, `lint`, and `typecheck` in sequence.
 
-## Release Management
+## Release and provenance
 
-- `make release-dependency VERSION=<version>`: This is the primary command for creating a signed, versioned artifact. It takes a `VERSION` argument (e.g., `v1.2.3`) and generates a signed schema file in the `/dependencies` directory. The process includes validation, checksumming, signing via Vault, and creating a new Git branch and tag for the release.
-- `make release-schema VERSION=<version>`: Similar to `release-dependency`, but intended for creating final, application-specific schemas. It places the signed artifact in the `/release` directory.
+- `make release.subject`: Prints the **release subject** — a digest over every
+  tracked file except `MANIFEST.sha256` and `project.yaml`, neither of which a
+  digest they carry can cover. It therefore binds `SPEC.md`, the schemas, every
+  conformance vector and both implementations.
+- `make release.verify`: Checks that `project.yaml`'s `buildHash` is the subject
+  of the tree in front of it. Runs outside the container, stdlib only, so a
+  third party can verify a release with a clone and a Python.
+- `make review.check`: Checks that an external review record exists for this
+  tree (INV-046). Not part of `make ci`, because it gates a release rather than
+  a commit; CI runs it on pull requests into `main`.
+- `make release VERSION=<version>`: The inherited Vault signing path. **Its
+  descriptor handling does not yet implement INV-045** — see
+  `docs/spec-defects.md` and the audit record in `reviews/`.
+
+The previous version of this section advertised `make release-dependency` and
+`make release-schema`. Neither target has ever existed in this repository: both
+were inherited from the base template, and `make -n` on either returns "No rule
+to make target". Anyone following this page could not begin.
 
 ## Repository Setup
 

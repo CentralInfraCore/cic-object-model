@@ -82,30 +82,38 @@ Ez a tipikus ciklus, amelyet a sémák módosításakor vagy létrehozásakor k�
 
 ## Kiadás Létrehozása
 
-Amikor egy séma készen áll a verziózásra és terjesztésre, létrehozol egy "kiadási artefaktumot". Ez a séma egy aláírt, megváltoztathatatlan verziója.
+A kiadás itt nem lefordított artefaktum. Az alany a normatív termék: a
+specifikáció, a gépi olvasható sémák, minden konformancia-vektor és minden vele
+szállított implementáció (SPEC INV-045).
 
-1.  **Győződj meg róla, hogy a munkakönyvtárad tiszta:**
-    A kiadási szkript leáll, ha vannak nem commit-olt módosításaid.
-
-2.  **Futtasd a Kiadási Parancsot:**
-    Használd a `make release-dependency` parancsot egy aláírt séma generálásához, amely a `/dependencies` könyvtárba kerül. A `VERSION` változónak érvényes szemantikus verziónak kell lennie (pl. `v1.2.3`).
+1.  **A munkafa legyen tiszta, és a kapuk menjenek át.**
 
     ```sh
-    make release-dependency VERSION=v1.0.0
+    make ci
     ```
 
-3.  **Tekintsd át a Folyamatot:**
-    A szkript automatikusan a következő műveleteket hajtja végre:
-    - Létrehoz egy új kiadási ágat (pl. `template-schema/releases/v1.0.0`).
-    - Meghívja a `compiler.py` szkriptet az aláírt artefaktum generálásához.
-    - Commit-olja az új artefaktumot a kiadási ágra.
-    - Létrehoz egy GPG-aláírt Git taget a kiadási verzióhoz.
-    - Visszavált az eredeti ágadra.
-
-4.  **A Tag Feltöltése:**
-    A kiadási folyamat egy helyi Git tag létrehozásával zárul. Ahhoz, hogy a kiadást megoszd másokkal, fel kell töltened ezt a taget a távoli repository-ba.
+2.  **Számold ki az alanyt, és rögzítsd.**
 
     ```sh
-    # Példa tag névre: template-schema@v1.0.0
-    git push origin <tag_neve>
+    make release.subject          # kiírja a digestet
+    # írd be a project.yaml metadata.buildHash mezőjébe
+    make manifest-update
+    make release.verify           # megerősíti, hogy a leíró ezt a fát írja le
     ```
+
+3.  **Rendelj külső vizsgálatot erre az alanyra**, és tedd le a rekordot
+    `reviews/<subject-digest>.md` néven. A `devel` csak ezután érheti el a
+    `main`-t (INV-046); az eljárás és a három megrendelő prompt az
+    [`external-review.md`](../external-review.md) fájlban van.
+
+    ```sh
+    make review.check
+    ```
+
+4.  **Nyisd meg a pull requestet a `main`-be.** A CI ehhez a célághoz futtatja a
+    `review.check`-et, tehát olyan fa, amihez nincs review, nem mergelhető.
+
+Ez az oldal korábban a `make release-dependency VERSION=v1.0.0` parancsot írta elő.
+Az a target soha nem létezett ebben a repositoryban — a bázissablonból örökölt
+szöveg volt —, tehát a dokumentált eljárást el sem lehetett kezdeni.
+

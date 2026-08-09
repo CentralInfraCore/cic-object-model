@@ -182,6 +182,28 @@ func validateOrigin(v any, path string) error {
 				return newError(CodeSealedMissingTemplateOrPath, "INV-015", StageFinalValidation, path,
 					"a sealed term must carry both template and path")
 			}
+			// And nothing else, and both scalars.
+			//
+			// INV-013 says the grammar has exactly four productions. Checking
+			// that the two members are PRESENT leaves the term open: a
+			// constructor carrying a third member, or a `template` that is a
+			// sequence, passed both implementations while being no production
+			// the grammar contains. That is the same presence-versus-shape
+			// mistake the sequence check already fixed one level up.
+			if len(sm.keys) != 2 {
+				return newError(CodeOriginGrammar, "INV-013", StageFinalValidation, path,
+					fmt.Sprintf("a sealed term carries template and path and nothing else; found %v", sm.keys))
+			}
+			for _, member := range []struct {
+				name  string
+				value any
+			}{{"template", tpl}, {"path", pth}} {
+				switch member.value.(type) {
+				case *orderedMap, []any:
+					return newError(CodeOriginGrammar, "INV-013", StageFinalValidation, path,
+						fmt.Sprintf("a sealed term's %s must be a scalar", member.name))
+				}
+			}
 			hasSealed = true
 			shape = append(shape, "sealed")
 		default:

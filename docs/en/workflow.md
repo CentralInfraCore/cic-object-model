@@ -82,30 +82,39 @@ This is the typical cycle you will follow when modifying or creating schemas.
 
 ## Creating a Release
 
-When a schema is ready to be versioned and distributed, you will create a "release artifact". This is a signed, immutable version of the schema.
+A release here is not a compiled artifact. The subject is the normative product:
+the specification, the machine-readable schemas, every conformance vector and
+every implementation shipped with it (SPEC INV-045).
 
-1.  **Ensure Your Working Directory is Clean:**
-    The release script will abort if you have uncommitted changes.
-
-2.  **Run the Release Command:**
-    Use the `make release-dependency` command to generate a signed schema and place it in the `/dependencies` directory. The `VERSION` variable must be a valid semantic version (e.g., `v1.2.3`).
+1.  **Ensure the working tree is clean and the gates pass.**
 
     ```sh
-    make release-dependency VERSION=v1.0.0
+    make ci
     ```
 
-3.  **Review the Process:**
-    The script will perform the following actions automatically:
-    - Create a new release branch (e.g., `template-schema/releases/v1.0.0`).
-    - Invoke the `compiler.py` script to generate the signed artifact.
-    - Commit the new artifact to the release branch.
-    - Create a GPG-signed Git tag for the release version.
-    - Switch back to your original branch.
-
-4.  **Push the Tag:**
-    The release process concludes by creating a local Git tag. To share the release with others, you must push this tag to the remote repository.
+2.  **Compute the subject and record it.**
 
     ```sh
-    # Example tag name: template-schema@v1.0.0
-    git push origin <tag_name>
+    make release.subject          # prints the digest
+    # write it into project.yaml's metadata.buildHash
+    make manifest-update
+    make release.verify           # confirms the descriptor describes this tree
     ```
+
+3.  **Commission an external review of that subject** and file the record as
+    `reviews/<subject-digest>.md`. `devel` reaches `main` only afterwards
+    (INV-046); the procedure and the three commissioning prompts are in
+    [`external-review.md`](../external-review.md).
+
+    ```sh
+    make review.check
+    ```
+
+4.  **Open the pull request into `main`.** CI runs `review.check` for that
+    target branch, so a tree with no review for it cannot merge.
+
+This page previously instructed `make release-dependency VERSION=v1.0.0`. That
+target has never existed in this repository — it was inherited from the base
+template — so the documented procedure could not be started, let alone
+completed.
+
