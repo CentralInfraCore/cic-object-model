@@ -1089,9 +1089,15 @@ what a reader is relying on.
 Two properties the subject must have, and both are consequences rather than
 choices:
 
-- **It cannot cover what carries it.** The descriptor holds the digest, so
-  including the descriptor would mean writing the answer changed the question.
-  The descriptor is the *claim*; the subject is what it claims to be about.
+- **It cannot cover what is about it.** The descriptor holds the digest, and a
+  review record is named for it, so including either would mean writing the
+  answer changed the question. The descriptor and the review are *claims about*
+  the subject; the subject is the normative product they are claims about.
+
+  This was stated for the descriptor and missed for the review, which made
+  INV-046 unsatisfiable: a record committed to a pull request changed the digest
+  its own filename referred to, and the newly required record changed it again.
+  No tree could carry a review of itself short of a SHA-256 fixed point.
 - **It must be verifiable by someone who is not the publisher.** A check that
   needs the publisher's toolchain establishes nothing for anyone else.
 
