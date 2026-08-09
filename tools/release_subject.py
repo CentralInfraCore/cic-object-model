@@ -206,8 +206,13 @@ def cmd_review(root: Path) -> int:
 
     print("FAIL  no external review record for this tree")
     print(f"        expected  {REVIEWS}/{subject}.md")
+    # README.md documents the directory; it is not a record of anything.
+    # Listing it as one told a reader that a review of a different tree existed
+    # when none did — a wrong answer dressed as a helpful one.
     existing = (
-        sorted(p.name for p in reviews_dir.glob("*.md")) if reviews_dir.is_dir() else []
+        sorted(p.name for p in reviews_dir.glob("*.md") if p.name != "README.md")
+        if reviews_dir.is_dir()
+        else []
     )
     if existing:
         print(f"        present   {', '.join(existing)}")
