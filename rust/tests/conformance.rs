@@ -21,7 +21,11 @@ const CORPUS: &str = "../conformance";
 
 /// What "the corpus ran" means. A runner that discovers zero vectors and exits
 /// 0 has not run the corpus, so the counts are asserted rather than reported.
-const EXPECTED: [(&str, usize); 3] = [("materialization", 13), ("invalid", 7), ("validation", 9)];
+// 9 invalid since SPEC §2.6: 008 and 009 are INV-041 and INV-042, the two
+// things the serialization can do to an address before the model sees the
+// document. Both exist because the two implementations DISAGREED on real input
+// and the corpus could not see it.
+const EXPECTED: [(&str, usize); 3] = [("materialization", 13), ("invalid", 9), ("validation", 9)];
 
 fn vectors(group: &str) -> Vec<PathBuf> {
     let dir = Path::new(CORPUS).join(group);

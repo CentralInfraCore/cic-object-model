@@ -9,23 +9,24 @@
 //! mappings large enough for lookup cost to matter, and a `Vec` keeps order
 //! without a second dependency.
 //!
-//! # A limit worth stating: duplicate keys
+//! # Duplicate keys are refused, in the same pass
 //!
-//! `a: 1` followed by `a: 2` in one mapping does not reach this code as two
-//! entries. The parser resolves it to `{a: 2}` — last wins, silently — so a
-//! duplicate-key check here would be unreachable code claiming a guarantee it
-//! cannot make. Measured, not assumed: `Yaml::load_from_str("a: 1\na: 2\n")`
-//! yields a single-entry mapping.
+//! `a: 1` followed by `a: 2` in one mapping does not reach the tree builder as
+//! two entries: the composer resolves it to `{a: 2}`, last wins, silently. A
+//! check after composition would therefore be unreachable code claiming a
+//! guarantee it cannot make.
 //!
-//! This matters more than it looks. A model whose stated purpose is unique
-//! addressing (INV-040) silently accepts an authoring document in which one
-//! address was written twice with different values, and takes the second. The
-//! Go implementation is in the same position for the same reason, so the two
-//! agree — which is exactly the kind of agreement that proves nothing, because
-//! it comes from the two YAML libraries behaving alike rather than from the
-//! specification saying anything. SPEC.md does not address duplicate keys at
-//! all; it should, and until it does neither implementation can be said to be
-//! right here.
+//! It was left at that for one commit, on the reasoning that the Go
+//! implementation behaved the same way and the specification said nothing, so
+//! the two at least agreed. **That reasoning was wrong and it was never
+//! measured.** Go rejects the document outright — `mapping key "a" already
+//! defined at line 1` — which means the two implementations disagreed on real
+//! input, in a model whose stated purpose is unique addressing (INV-040), and
+//! the corpus could not see it because no vector contains a duplicate.
+//!
+//! Finding that is what a second implementation is FOR. Go's behaviour is the
+//! right one, so the scan below refuses duplicates too, at the event level
+//! where both keys are still visible.
 //!
 //! # Anchors and aliases are refused, before a tree exists
 //!
@@ -149,7 +150,7 @@ pub fn parse(data: &[u8], stage: Stage, path: &str, what: &str) -> Result<Value>
         )
     })?;
 
-    refuse_aliases(text, stage, path, what)?;
+    scan_input(text, stage, path, what)?;
 
     let docs = Yaml::load_from_str(text).map_err(|e| {
         Error::new(
@@ -174,31 +175,110 @@ pub fn parse(data: &[u8], stage: Stage, path: &str, what: &str) -> Result<Value>
     convert(&doc, stage, path, what)
 }
 
-/// Refuse a document containing an alias, without composing it.
+/// Scan the document as an event stream and refuse what the composer would
+/// otherwise silently absorb.
 ///
-/// The event stream is what the parser produces before it builds anything, so
-/// an alias is visible here at the cost of reading the input once — and an
-/// alias bomb never gets the chance to expand. See the note at the top of this
-/// module for the measurement that makes this necessary rather than tidy.
-fn refuse_aliases(text: &str, stage: Stage, path: &str, what: &str) -> Result<()> {
-    let refuse =
-        |detail: String| Error::new(code::MALFORMED_DOCUMENT, "INV-013", stage, path, detail);
+/// Two things are only visible here. An **alias**, because composing one is
+/// where a few hundred bytes become millions of nodes — by the time a value
+/// reaches the tree builder the memory is already spent. And a **duplicate
+/// key**, because the composer resolves it to one entry before anything
+/// downstream can count them.
+///
+/// Scanning is linear in the input's own size and expands nothing, so both cost
+/// one read of the bytes.
+fn scan_input(text: &str, stage: Stage, path: &str, what: &str) -> Result<()> {
+    // The invariant is the rule the document broke, not the stage's generic
+    // one: INV-041 for a duplicate key, INV-042 for an alias, INV-013 only for
+    // a document the parser could not read at all.
+    let refuse = |invariant: &'static str, detail: String| {
+        Error::new(code::MALFORMED_DOCUMENT, invariant, stage, path, detail)
+    };
+
+    let mut stack: Vec<Frame> = Vec::new();
+
     for event in Parser::new_from_str(text) {
+        let (event, _) =
+            event.map_err(|e| refuse("INV-013", format!("{what} is not valid YAML: {e}")))?;
         match event {
-            Ok((Event::Alias(_), _)) => {
-                return Err(refuse(format!(
-                    "{what} uses a YAML alias; anchors and aliases are not part of \
-                     the schema language or the authoring format, and expanding one \
-                     can turn a few hundred bytes into millions of nodes"
-                )))
+            Event::Alias(_) => {
+                return Err(refuse(
+                    "INV-042",
+                    format!(
+                        "{what} uses a YAML anchor or alias; neither is part of the \
+                         format, and expanding an alias can turn a few hundred bytes \
+                         into millions of nodes"
+                    ),
+                ))
             }
-            Ok(_) => {}
-            // A scan error here is the same malformed document the tree builder
-            // would reject a moment later; reporting it now keeps one message.
-            Err(e) => return Err(refuse(format!("{what} is not valid YAML: {e}"))),
+            Event::MappingStart(..) => {
+                consume_value(&mut stack);
+                stack.push(Frame {
+                    keys: Vec::new(),
+                    expecting_key: true,
+                    is_mapping: true,
+                });
+            }
+            Event::SequenceStart(..) => {
+                consume_value(&mut stack);
+                stack.push(Frame {
+                    keys: Vec::new(),
+                    expecting_key: false,
+                    is_mapping: false,
+                });
+            }
+            Event::MappingEnd | Event::SequenceEnd => {
+                stack.pop();
+            }
+            Event::Scalar(value, ..) => {
+                let key = match stack.last_mut() {
+                    Some(f) if f.is_mapping && f.expecting_key => {
+                        f.expecting_key = false;
+                        Some(value.to_string())
+                    }
+                    Some(f) if f.is_mapping => {
+                        f.expecting_key = true;
+                        None
+                    }
+                    _ => None,
+                };
+                if let Some(k) = key {
+                    let frame = stack.last_mut().expect("the frame is still open");
+                    if frame.keys.contains(&k) {
+                        return Err(refuse(
+                            "INV-041",
+                            format!(
+                                "{what} declares `{k}` twice in one mapping; the same \
+                                 name at different addresses is legal, one address \
+                                 written twice is not"
+                            ),
+                        ));
+                    }
+                    frame.keys.push(k);
+                }
+            }
+            _ => {}
         }
     }
     Ok(())
+}
+
+/// One frame per open collection: the keys seen so far, and whether the next
+/// scalar in it is a key or a value. Sequences push a frame too, so a mapping
+/// nested inside one does not inherit its parent's key set.
+struct Frame {
+    keys: Vec<String>,
+    expecting_key: bool,
+    is_mapping: bool,
+}
+
+/// A composite appearing where a mapping expects a value moves the frame on to
+/// the next key.
+fn consume_value(stack: &mut [Frame]) {
+    if let Some(f) = stack.last_mut() {
+        if f.is_mapping && !f.expecting_key {
+            f.expecting_key = true;
+        }
+    }
 }
 
 fn convert(y: &Yaml, stage: Stage, path: &str, what: &str) -> Result<Value> {

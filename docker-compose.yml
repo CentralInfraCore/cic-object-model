@@ -95,14 +95,12 @@ services:
       # write them. Docker also creates a MISSING bind source as root, so the
       # directories have to exist before `up` — which is why rust.up mkdirs
       # them rather than relying on the daemon.
-      #
-      # No default value on purpose. A fallback path would be created by Docker
-      # on first use — as root, because the daemon creates missing bind sources
-      # — and cargo, running as the host user, then cannot write it. With a
-      # `:?` the container refuses to start instead, naming the reason. Always
-      # go through `make rust.up`.
-      - ${RUST_CACHE_DIR:?set by mk/rust.mk; start this service with make rust.up}/cargo:/cargo
-      - ${RUST_CACHE_DIR:?set by mk/rust.mk; start this service with make rust.up}/target:/target
+      # Named volumes, writable because Dockerfile.rust creates /cargo and
+      # /target in the image — a named volume inherits the permissions of the
+      # directory it is mounted over. See the note there for what the other
+      # three arrangements each got wrong.
+      - rust-cargo:/cargo
+      - rust-target:/target
     environment:
       - CARGO_HOME=/cargo
       - CARGO_TARGET_DIR=/target
@@ -118,3 +116,7 @@ services:
     tty: true
     entrypoint: ["sh"]
     command: ["-c", "tail -f /dev/null"]
+
+volumes:
+  rust-cargo:
+  rust-target:

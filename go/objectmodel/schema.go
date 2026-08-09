@@ -3,8 +3,6 @@ package objectmodel
 import (
 	"fmt"
 	"slices"
-
-	"gopkg.in/yaml.v3"
 )
 
 // primitiveSet is the eight irreducible atoms (SPEC §6.1). The order is the
@@ -101,10 +99,9 @@ type Schema struct {
 // INV-015 and INV-005 — are the three the corpus places at stage
 // `schema-load`, a stage SPEC §8 does not list (docs/spec-defects.md SD-002).
 func LoadSchema(data []byte) (*Schema, error) {
-	var raw any
-	if err := yaml.Unmarshal(data, &raw); err != nil {
-		return nil, newError(CodeMalformedDocument, "INV-013", StageSchemaLoad, "$",
-			fmt.Sprintf("schema is not valid YAML: %v", err))
+	raw, err := parseDocument(data, "INV-013", StageSchemaLoad, "the schema")
+	if err != nil {
+		return nil, err
 	}
 	m, ok := asMap(raw)
 	if !ok {

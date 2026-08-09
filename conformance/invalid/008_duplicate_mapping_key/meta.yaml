@@ -1,0 +1,12 @@
+---
+id: invalid/008_duplicate_mapping_key
+title: Authoring input declaring one key twice is rejected
+invariants: [INV-041]
+description: >-
+  One address written twice with two values has no single answer, and a model
+  that resolves it by position in the file is deciding provenance by luck.
+  This vector exists because the two implementations disagreed on it: one
+  rejected the document, the other silently kept the last value, and nothing
+  noticed because no vector contained a duplicate. Note what is NOT a
+  duplicate — the same name at different addresses, which
+  materialization/009_normalize_map already exercises.

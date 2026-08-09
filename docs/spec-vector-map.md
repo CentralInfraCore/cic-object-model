@@ -56,6 +56,8 @@ implementation. Agreement *between* implementations is still an untested claim.
 | INV-038 | A normative change ships with its vectors and every implementation | 11.1 | **see Unvectorizable** |
 | INV-039 | Schema-less final validation is key-directed and weaker | 4.3 |
 | INV-040 | Every node has exactly one address | 2.5 | **see Unvectorizable** | `validation/001_origin_yaml_schema_conflict` <br> `validation/002_origin_empty` |
+| INV-041 | A mapping declares no key twice | 2.6 | `invalid/008_duplicate_mapping_key` |
+| INV-042 | No YAML anchors or aliases | 2.6 | `invalid/009_yaml_alias` |
 
 **32 of 34 invariants are vector-covered.** The remaining
 2 are below.

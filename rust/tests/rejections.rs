@@ -360,6 +360,50 @@ fn an_alias_bomb_is_refused_without_expanding_it() {
     );
 }
 
+/// Duplicate keys are refused, and the two implementations now agree because
+/// they were made to, not because their parsers happened to behave alike.
+///
+/// This was left accepted for one commit, on the reasoning that Go behaved the
+/// same way. That reasoning was never measured and was wrong: Go rejects the
+/// document — `mapping key "a" already defined at line 1`. The two
+/// implementations disagreed on real input, in a model whose point is unique
+/// addressing, and the corpus could not see it because no vector holds a
+/// duplicate.
+#[test]
+fn a_duplicate_key_is_refused() {
+    for doc in [
+        "a: 1\na: 2\n",              // at the root
+        "outer:\n  a: 1\n  a: 2\n",  // nested
+        "xs:\n  - a: 1\n    a: 2\n", // inside a sequence entry
+        "a: 1\nb: 2\na: 3\n",        // not adjacent
+    ] {
+        let err = value::parse(doc.as_bytes(), Stage::EntryValidation, "$", "input")
+            .unwrap_err_or_panic(&format!("a duplicate key was accepted in {doc:?}"));
+        assert_eq!(err.code, code::MALFORMED_DOCUMENT, "for {doc:?}");
+        assert!(
+            err.detail.contains("twice"),
+            "the message does not say why: {}",
+            err.detail
+        );
+    }
+}
+
+/// The same key at different levels, and in different mappings at the same
+/// level, is not a duplicate — those are different addresses. A check that
+/// cannot tell them apart would reject most real documents.
+#[test]
+fn the_same_name_at_different_addresses_is_not_a_duplicate() {
+    for doc in [
+        "a:\n  a: 1\n",                   // a child sharing its parent's name
+        "one:\n  x: 1\nother:\n  x: 2\n", // sibling mappings, same key
+        "xs:\n  - x: 1\n  - x: 2\n",      // sequence entries, same key
+        "a: 1\nb:\n  a: 2\n",             // shadowed one level down
+    ] {
+        value::parse(doc.as_bytes(), Stage::EntryValidation, "$", "input")
+            .unwrap_or_else(|e| panic!("{doc:?} was wrongly refused: {e}"));
+    }
+}
+
 #[test]
 fn an_anchor_without_an_alias_is_still_refused() {
     // An anchor alone expands nothing, but it is not part of either format and

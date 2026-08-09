@@ -1,0 +1,10 @@
+---
+error:
+  code: E_MALFORMED_DOCUMENT
+  invariant: INV-042
+  stage: entry-validation
+  path: $
+  detail: >-
+    the input uses a YAML anchor or alias. Neither is part of the authoring
+    format, and expanding an alias can turn a few hundred bytes into millions
+    of nodes.

@@ -174,36 +174,6 @@ fn a_non_string_key_is_refused_rather_than_stringified() {
     }
 }
 
-/// Duplicate keys are NOT refused, and this records that rather than hiding it.
-///
-/// The parser collapses `a: 1` / `a: 2` to `{a: 2}` before this crate sees
-/// either, so there is no point in the pipeline where the duplicate exists to
-/// be rejected. An authoring document that writes one address twice is accepted
-/// and the second value wins, in a model whose point is unique addressing.
-/// SPEC.md says nothing about it; see the note in src/value.rs.
-#[test]
-fn duplicate_keys_are_silently_collapsed_last_wins() {
-    let v = value::parse(
-        b"a: 1
-a: 2
-",
-        Stage::SchemaLoad,
-        "$",
-        "input",
-    )
-    .expect("parses");
-    let m = v.as_map().expect("a mapping");
-    assert_eq!(
-        m.len(),
-        1,
-        "the parser kept both keys; the note in value.rs is stale"
-    );
-    assert!(
-        matches!(m.get("a"), Some(value::Value::Int(2))),
-        "last did not win"
-    );
-}
-
 #[test]
 fn an_empty_document_is_the_empty_mapping() {
     for doc in [b"".as_slice(), b"---\n".as_slice(), b"{}\n".as_slice()] {

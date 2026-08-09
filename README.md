@@ -17,16 +17,16 @@ written into SPEC.md and propagated nowhere else.
 
 | Component | Status |
 |---|---|
-| `SPEC.md` — 40 numbered invariants | written, normative |
-| `conformance/` — 26 vectors | executed against Go on every CI run |
-| `docs/spec-vector-map.md` | 35 invariants vector-covered, 5 declared unvectorizable with a reason each |
+| `SPEC.md` — 42 numbered invariants | written, normative |
+| `conformance/` — 31 vectors | executed against Go on every CI run |
+| `docs/spec-vector-map.md` | 37 invariants vector-covered, 5 declared unvectorizable with a reason each |
 | `tools/check_spec_vectors.py` | runs and passes; negative-tested |
 | `go/` | implemented — corpus, fuzz, mutation, adversarial and CLI golden tests |
 | `rust/` | implemented — corpus, reader, rejection and CLI golden tests |
 | `mk/rust.mk` | present; digest-pinned toolchain, `make rust.quality` |
 | Docker build / CI | runs; `make ci` is the same pipeline locally and in Actions |
 
-Both implementations pass all 29 vectors, and neither was written from the
+Both implementations pass all 31 vectors, and neither was written from the
 other: the Rust one was written from `SPEC.md` and the corpus, deliberately not
 from `go/`. Two implementations that share an author's reading share that
 reading's mistakes, and their agreement then proves nothing.

@@ -1,0 +1,9 @@
+---
+error:
+  code: E_MALFORMED_DOCUMENT
+  invariant: INV-041
+  stage: entry-validation
+  path: $
+  detail: >-
+    the input declares `mtu` twice in one mapping. The same name at different
+    addresses is legal; one address written twice is not.

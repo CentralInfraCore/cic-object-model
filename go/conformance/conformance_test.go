@@ -96,7 +96,13 @@ var expectedCounts = map[string]int{
 	// INV-005 no longer treats as one — under INV-035 a primitive's payload
 	// materializes like any other structure, so that nesting is ordinary.
 	// See docs/spec-defects.md SD-005.
-	"invalid": 7,
+	// 9 since SPEC §2.6: 008 and 009 are INV-041 and INV-042, the two things
+	// the serialization can do to an address before the model sees the
+	// document. Both exist because the two implementations DISAGREED on real
+	// input and the corpus could not see it — one rejected a duplicate key and
+	// the other silently kept the last value; one refused every alias and the
+	// other accepted a document with one.
+	"invalid": 9,
 	// 9 since the origin grammar became enforced: 007, 008 and 009 are the
 	// negative side of INV-013. The invariant says "exactly four forms" and was
 	// covered by four vectors, one per form, all positive — so the corpus

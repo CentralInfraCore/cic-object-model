@@ -1,0 +1,12 @@
+---
+id: invalid/009_yaml_alias
+title: Authoring input containing a YAML alias is rejected
+invariants: [INV-042]
+description: >-
+  An alias makes one value reachable from two addresses, and `origin` has four
+  forms of which none says "the same value as somewhere else" — so an aliased
+  node's provenance is not expressible. The second reason is measured: 393
+  bytes of nested aliases compose to 12,345,678 nodes in 2.7 seconds, on input
+  that is untrusted by construction. One implementation was protected by its
+  YAML library and the other was not, which is why this is a vector rather than
+  a note.

@@ -13,3 +13,15 @@ FROM ${RUST_IMAGE}
 
 RUN rustup component add rustfmt clippy llvm-tools-preview \
     && chmod -R a+rX /usr/local/rustup /usr/local/cargo
+
+# The cargo caches live in named volumes, and a named volume inherits the
+# permissions of the image directory it is mounted over. Creating them here,
+# world-writable, is what lets the container run as the host user and still
+# write them.
+#
+# Everything else fails: a fresh named volume with no image directory behind it
+# is created root-owned; a host bind mount is created root-owned by the daemon
+# when it does not exist; and requiring an env var for the path made every
+# `docker compose` command in the repository fail, including ones that only
+# touch the Python builder.
+RUN mkdir -p /cargo /target && chmod 1777 /cargo /target
