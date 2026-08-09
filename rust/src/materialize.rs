@@ -148,6 +148,27 @@ impl<'a> Ctx<'a> {
 
         let a = Self::discriminate(effective, authored, path)?;
         let shape = effective.shape.as_deref().unwrap_or("object");
+        Self::check_arity(shape, &a, path)?;
+
+        // INV-022 — a required value must be authored or defaultable. The flag
+        // was parsed and never read, so a required child that nobody supplied
+        // materialized as `null` with `origin: [schema]`: the sole materializer
+        // manufacturing an object that should not exist, which no downstream
+        // check can repair because it is well-formed.
+        if effective.required
+            && !a.present
+            && effective.default.is_none()
+            && content.is_none()
+            && sealed_ctx.is_none()
+        {
+            return Err(Error::new(
+                code::REQUIRED_VALUE_MISSING,
+                "INV-022",
+                Stage::DefaultMaterialization,
+                path,
+                "a required value was neither authored nor defaultable",
+            ));
+        }
 
         let payload = self.build_payload(effective, shape, &a, path, sealed_ctx, content)?;
         let origin = Self::origin_of(&a, effective, sealed_ctx, content);
@@ -192,6 +213,52 @@ impl<'a> Ctx<'a> {
             }),
             entry.content.as_ref(),
         ))
+    }
+
+    /// A declared position takes a payload of its own arity (INV-008).
+    ///
+    /// This checks arity, not the declared `scalar_type`. Whether
+    /// `scalar_type: integer` constrains a value is a question the
+    /// specification does not answer; whether a scalar position holds a scalar
+    /// is not in doubt.
+    ///
+    /// It was missing, and each shape failed differently for it. A sequence at
+    /// a scalar position reached the emitter, whose collection arm is a
+    /// `debug_assert!(false, ...)` — so a five-byte input PANICKED a debug
+    /// build and emitted `null` in a release one. A non-sequence at a list
+    /// position went through `Value::as_seq`, whose `None` skipped the loop and
+    /// produced an EMPTY LIST: the authored value disappeared and the object
+    /// still claimed `origin: [yaml]` for it.
+    fn check_arity(shape: &str, a: &Authored<'_>, path: &str) -> Result<()> {
+        let Some(v) = a.payload else {
+            return Ok(());
+        };
+        let mismatch = |what: &str| {
+            Err(Error::new(
+                code::TYPE_MISMATCH,
+                "INV-008",
+                Stage::EntryValidation,
+                path,
+                format!("a {shape} position requires a {what} payload"),
+            ))
+        };
+        match shape {
+            // Opaque is carried verbatim: any payload is its payload.
+            "opaque" => Ok(()),
+            "scalar" => match v {
+                Value::Seq(_) => mismatch("scalar payload, not a sequence"),
+                Value::Map(_) => mismatch("scalar payload, not a mapping"),
+                _ => Ok(()),
+            },
+            "list" => match v {
+                Value::Seq(_) => Ok(()),
+                _ => mismatch("sequence"),
+            },
+            _ => match v {
+                Value::Map(_) => Ok(()),
+                _ => mismatch("mapping"),
+            },
+        }
     }
 
     /// The structural discriminator (SPEC §4, INV-008).

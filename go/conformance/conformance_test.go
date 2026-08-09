@@ -101,7 +101,11 @@ var expectedCounts = map[string]int{
 	// input and the corpus could not see it — one rejected a duplicate key and
 	// the other silently kept the last value; one refused every alias and the
 	// other accepted a document with one.
-	"invalid": 9,
+	// 12 since the first external audit: 010, 011 and 012 are the three cases
+	// where a declared position met a payload of the wrong arity, or a required
+	// value was absent. The corpus contained NO wrong-typed input, which is why
+	// two implementations disagreed on all three and nothing here noticed.
+	"invalid": 12,
 	// 9 since the origin grammar became enforced: 007, 008 and 009 are the
 	// negative side of INV-013. The invariant says "exactly four forms" and was
 	// covered by four vectors, one per form, all positive — so the corpus

@@ -1,0 +1,6 @@
+---
+id: invalid/011_list_position_scalar_payload
+title: A scalar at a declared list position is rejected
+invariants: [INV-008]
+description: >-
+  Go rejected this; Rust took `as_seq`, whose `None` skipped the loop, and produced an EMPTY LIST — the authored value disappeared while the object still claimed `origin: [yaml]` for it. Silent deletion of an allow-list is materially different from a rejection, and the corpus contained no wrong-typed input at all.

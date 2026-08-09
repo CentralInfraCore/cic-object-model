@@ -23,7 +23,7 @@ implementation. Agreement *between* implementations is still an untested claim.
 | INV-005 | Materialization terminates because the schema is finite | 2.3 | **see Unvectorizable** |
 | INV-006 | No documentation member on a canonical node | 2.4 | `validation/004_documentation_member` |
 | INV-007 | Authoring input MUST NOT contain `origin` | 3 | `invalid/005_origin_in_authoring_input` |
-| INV-008 | Envelope/payload decided by schema position (materialization only) | 4.3 | `materialization/007_normalize_scalar` <br> `materialization/011_discriminator_envelope` <br> `materialization/012_discriminator_payload_keywords` |
+| INV-008 | Envelope/payload decided by schema position (materialization only) | 4.3 | `materialization/007_normalize_scalar` <br> `materialization/011_discriminator_envelope` <br> `materialization/012_discriminator_payload_keywords` <br> `invalid/011_list_position_scalar_payload` <br> `invalid/012_scalar_position_sequence_payload` |
 | INV-009 | At structured positions: envelope iff `values` present | 4.3 | `invalid/004_schema_declares_values_child` <br> `materialization/011_discriminator_envelope` |
 | INV-010 | Schema MUST NOT declare a child named `values` or `origin` | 4.3 | `invalid/004_schema_declares_values_child` <br> `materialization/011_discriminator_envelope` |
 | INV-011 | No primitive interpretation below `values` | 4.3 | `materialization/006_closure_opaque` <br> `materialization/012_discriminator_payload_keywords` |
@@ -37,7 +37,7 @@ implementation. Agreement *between* implementations is still an untested claim.
 | INV-019 | No authoring at or below a sealed boundary | 5.4 | `invalid/001_sealed_yaml_conflict` <br> `invalid/002_sealed_yaml_schema_conflict` <br> `materialization/003_origin_sealed` <br> `materialization/004_origin_sealed_schema` |
 | INV-020 | Origin `sealed` always a constructor; distinct from slot mode | 5.5 | `invalid/007_sealed_missing_path` <br> `materialization/003_origin_sealed` |
 | INV-021 | Unknown primitives rejected | 6.1 | `invalid/006_unknown_primitive` |
-| INV-022 | Every schema-declared primitive materialized | 6.1 | `invalid/006_unknown_primitive` |
+| INV-022 | Every schema-declared primitive materialized | 6.1 | `invalid/006_unknown_primitive` <br> `invalid/010_required_value_missing` |
 | INV-023 | Named addressable entries, not anonymous lists | 6.3 | `materialization/013_access_inherit_injection` |
 | INV-024 | `access` operations are `read` and `modify` | 6.4 | `materialization/013_access_inherit_injection` |
 | INV-025 | `inherit` retained, per-operation, tri-state | 6.4 | `materialization/013_access_inherit_injection` |

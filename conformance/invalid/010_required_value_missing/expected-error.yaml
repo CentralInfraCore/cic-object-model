@@ -1,0 +1,8 @@
+---
+error:
+  code: E_REQUIRED_VALUE_MISSING
+  invariant: INV-022
+  stage: default-materialization
+  path: $.values.secret
+  detail: >-
+    a required value was neither authored nor defaultable

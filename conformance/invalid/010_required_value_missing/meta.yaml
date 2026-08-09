@@ -1,0 +1,6 @@
+---
+id: invalid/010_required_value_missing
+title: A required value that is neither authored nor defaultable is rejected
+invariants: [INV-022]
+description: >-
+  One implementation enforced this and the other parsed the flag and never read it, so the same schema and input produced a rejection in Go and a node with `values: null`, `origin: [schema]` in Rust — the sole materializer manufacturing an object that should not exist, and one no downstream check can repair because it is well-formed. No vector used `required: true`, which is why the corpus could not see it.

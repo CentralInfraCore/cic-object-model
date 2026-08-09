@@ -1,0 +1,6 @@
+---
+id: invalid/012_scalar_position_sequence_payload
+title: A sequence at a declared scalar position is rejected
+invariants: [INV-008]
+description: >-
+  BOTH implementations accepted this, and each failed differently. Go emitted a canonical object whose own `shape` primitive said `scalar` while its payload was a sequence — an object contradicting itself, produced by the only thing allowed to make one. Rust reached an emitter arm written as `debug_assert!(false, ...)`, so a five-byte input panicked a debug build and emitted `null` in a release one. This vector checks ARITY; whether `scalar_type` constrains a value is a separate question the specification does not answer.
