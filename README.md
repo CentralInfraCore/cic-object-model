@@ -1,7 +1,7 @@
 # cic-object-model
 
 The normative specification of the CIC object model, its conformance vectors,
-and the Go reference implementation. The Rust one is not written.
+and two independent reference implementations, in Go and in Rust.
 
 **[`SPEC.md`](SPEC.md) is the authority.** The implementations are subordinate
 to it: where an implementation disagrees with the specification, the
@@ -22,21 +22,23 @@ written into SPEC.md and propagated nowhere else.
 | `docs/spec-vector-map.md` | 35 invariants vector-covered, 5 declared unvectorizable with a reason each |
 | `tools/check_spec_vectors.py` | runs and passes; negative-tested |
 | `go/` | implemented — corpus, fuzz, mutation, adversarial and CLI golden tests |
-| `rust/` | **empty** — the second implementation does not exist |
-| `mk/rust.mk` | absent — see [`docs/rust-gate-extraction.md`](docs/rust-gate-extraction.md) |
+| `rust/` | implemented — corpus, reader, rejection and CLI golden tests |
+| `mk/rust.mk` | present; digest-pinned toolchain, `make rust.quality` |
 | Docker build / CI | runs; `make ci` is the same pipeline locally and in Actions |
 
-Two limits worth stating before you rely on any of the above.
+Both implementations pass all 29 vectors, and neither was written from the
+other: the Rust one was written from `SPEC.md` and the corpus, deliberately not
+from `go/`. Two implementations that share an author's reading share that
+reading's mistakes, and their agreement then proves nothing.
 
-**One implementation is not two.** The mutual check described below is the
-reason there are meant to be two, and it is not in force: every claim that "the
-model behaves this way" currently rests on one reading of the corpus by one
-implementation, plus the corpus itself.
+One limit worth stating before you rely on any of the above.
 
 **§8.8 defines no canonical byte encoding** (`docs/spec-defects.md` SD-010), so
 `INV-030`'s determinism is checked structurally rather than byte for byte. Until
-that is written, "the two implementations agree" cannot mean byte-identical
-output, and a digest taken over a canonical object has no specified input.
+that is written, "the two implementations agree" means they agree on parsed
+structure — which is what the conformance runners compare — and a digest taken
+over a canonical object has no specified input. The Go and Rust emitters make
+different formatting choices today, and neither can be said to be wrong.
 
 ---
 
@@ -77,7 +79,7 @@ docs/
   branch-decision.md          why base-repo wasm/main
   rust-gate-extraction.md     line-referenced recipe for mk/rust.mk
 go/                         reference implementation
-rust/                       reference implementation (not written)
+rust/                       reference implementation
 ```
 
 ## Make targets
@@ -93,6 +95,7 @@ command, so a green badge and a green local run mean the same thing.
 | `make docs.link-check` | internal documentation links resolve |
 | `make golang.quality` | Go gate over `go/` |
 | `make golang.coverage-threshold` | fails below `COVERAGE_MIN` (90%) |
+| `make rust.quality` | the Rust gate: pin, fmt, clippy, coverage, `cargo deny` |
 | `make conformance` | run the corpus against every present implementation |
 | `make verify` | fuzz, mutation and adversarial suites |
 

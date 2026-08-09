@@ -14,6 +14,10 @@ repository = "https://github.com/CentralInfraCore/cic-object-model"
 
 [dependencies]
 saphyr = "0.0.6"
+# The event scanner, used to refuse aliases BEFORE a tree is composed — see
+# the note in src/value.rs. It is saphyr's own parser, so this pins no second
+# YAML implementation.
+saphyr-parser = "0.0.6"
 
 [[bin]]
 name = "cic-materialize"

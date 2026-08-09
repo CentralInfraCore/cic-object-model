@@ -13,15 +13,20 @@
 //! cost the repository the only reason it holds two. Where the two agree, they
 //! agree because the vectors made them.
 
+pub mod canonical;
 pub mod error;
+pub mod materialize;
 pub mod node;
 pub mod origin;
 pub mod schema;
+pub mod validate;
 pub mod value;
 
 pub use error::{Error, Result, Stage};
+pub use materialize::{materialize, CanonicalObject};
 pub use node::{Node, Payload};
 pub use origin::{Origin, Sealed};
+pub use validate::validate_canonical_document;
 
 /// The model version this crate implements.
 ///

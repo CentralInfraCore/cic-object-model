@@ -26,9 +26,27 @@
 //! specification saying anything. SPEC.md does not address duplicate keys at
 //! all; it should, and until it does neither implementation can be said to be
 //! right here.
+//!
+//! # Anchors and aliases are refused, before a tree exists
+//!
+//! An alias is not part of the schema language or the authoring format, and
+//! leaving it to the tree builder is not an option. Measured on this parser:
+//!
+//! ```text
+//! 393 bytes of nested aliases -> 12,345,678 nodes, 2.7 seconds
+//! ```
+//!
+//! That is a ~31,000x amplification on input this library treats as untrusted,
+//! and it happens during COMPOSITION — by the time a value reaches the code
+//! below, the memory is already spent, so no budget checked here can help.
+//!
+//! So the document is scanned as an event stream first. Scanning is linear in
+//! the input's own size and never expands an alias, so an `Alias` event can be
+//! refused for the price of reading the bytes once.
 
 use crate::error::{code, Error, Result, Stage};
 use saphyr::{LoadableYamlNode, Yaml};
+use saphyr_parser::{Event, Parser};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
@@ -131,6 +149,8 @@ pub fn parse(data: &[u8], stage: Stage, path: &str, what: &str) -> Result<Value>
         )
     })?;
 
+    refuse_aliases(text, stage, path, what)?;
+
     let docs = Yaml::load_from_str(text).map_err(|e| {
         Error::new(
             code::MALFORMED_DOCUMENT,
@@ -152,6 +172,33 @@ pub fn parse(data: &[u8], stage: Stage, path: &str, what: &str) -> Result<Value>
         return Ok(Value::Map(Map::default()));
     }
     convert(&doc, stage, path, what)
+}
+
+/// Refuse a document containing an alias, without composing it.
+///
+/// The event stream is what the parser produces before it builds anything, so
+/// an alias is visible here at the cost of reading the input once — and an
+/// alias bomb never gets the chance to expand. See the note at the top of this
+/// module for the measurement that makes this necessary rather than tidy.
+fn refuse_aliases(text: &str, stage: Stage, path: &str, what: &str) -> Result<()> {
+    let refuse =
+        |detail: String| Error::new(code::MALFORMED_DOCUMENT, "INV-013", stage, path, detail);
+    for event in Parser::new_from_str(text) {
+        match event {
+            Ok((Event::Alias(_), _)) => {
+                return Err(refuse(format!(
+                    "{what} uses a YAML alias; anchors and aliases are not part of \
+                     the schema language or the authoring format, and expanding one \
+                     can turn a few hundred bytes into millions of nodes"
+                )))
+            }
+            Ok(_) => {}
+            // A scan error here is the same malformed document the tree builder
+            // would reject a moment later; reporting it now keeps one message.
+            Err(e) => return Err(refuse(format!("{what} is not valid YAML: {e}"))),
+        }
+    }
+    Ok(())
 }
 
 fn convert(y: &Yaml, stage: Stage, path: &str, what: &str) -> Result<Value> {

@@ -25,6 +25,7 @@ name = "cic-object-model"
 version = "0.2.0"
 dependencies = [
  "saphyr",
+ "saphyr-parser",
 ]
 
 [[package]]
