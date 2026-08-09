@@ -36,13 +36,20 @@ metadata:
     until: 'TBD'
   checksum: 'TBD'
   sign: 'TBD'
-  # buildHash: there is no compiled artifact in this repo — the release
-  # subject is the spec + vector corpus. tools/infra.py
-  # (_resign_with_build_hash) requires a non-empty value, so the release
-  # process must fill it from the canonical source hash
-  # (compiler_settings.canonical_source_file). Left as TBD deliberately:
-  # an inherited placeholder digest here would be a false provenance claim.
-  buildHash: 'TBD'
+  # buildHash is the RELEASE SUBJECT: a SHA-256 over the manifest lines for
+  # every tracked file except MANIFEST.sha256 and this file, which no digest
+  # they carry can cover. It therefore binds SPEC.md, the schema index, all
+  # conformance vectors and both implementations — change a byte anywhere and
+  # this value changes.
+  #
+  # It used to be TBD, and the release signed a hash of THIS FILE while
+  # compiler_settings.canonical_source_file pointed at spec/index.yaml — one
+  # file, which names ../SPEC.md by path and binds nothing about its content.
+  # A signature that does not cover the normative product is worse than none.
+  #
+  # Recompute with `make release.subject`; check with `make release.verify`,
+  # which a third party can run with a clone and a Python and nothing else.
+  buildHash: '74d68dff85ede0b32343da4fe25acc0903f019563e08c395ffcbf7c195df8ab9'
   cicSign: 'TBD'
   cicSignedCA:
     certificate: "TBD — filled by the release process with the CIC Root CA certificate"

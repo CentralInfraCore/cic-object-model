@@ -62,7 +62,7 @@ ci.deps-drift:
 
 # ci.gates is everything that holds for this repository whether or not an
 # implementation exists: integrity, links, code quality, security.
-ci.gates: manifest-verify docs.link-check check ci.security
+ci.gates: manifest-verify release.verify docs.link-check check ci.security
 
 # ci.security runs the scanners as their own step rather than hiding inside
 # `check`. A security finding should be legible as a security finding.

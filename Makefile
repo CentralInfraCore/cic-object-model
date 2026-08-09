@@ -13,7 +13,7 @@ include mk/ci.mk
 -include mk/rust.mk
 
 # ---- Phony ----
-.PHONY: verify verify.fuzz verify.mutate all help validate release test up down shell build fmt lint check typecheck repo.init manifest-verify manifest-update docs.link-check conformance
+.PHONY: verify verify.fuzz verify.mutate release.subject release.verify all help validate release test up down shell build fmt lint check typecheck repo.init manifest-verify manifest-update docs.link-check conformance
 
 # Default to showing help
 all: help
@@ -137,6 +137,18 @@ manifest-verify: ##manifest-verify
 		     grep '^+[^+]' /tmp/MANIFEST.diff | sed 's|^+|  in tree, not in manifest (or changed): |'; \
 		     echo "run 'make manifest-update'"; exit 1; }
 	@echo "manifest describes all $$(wc -l < MANIFEST.sha256) tracked files"
+
+# release.subject / release.verify — what a signature over this repository
+# covers (SPEC §11.2).
+#
+# Run OUTSIDE the container on purpose. A third party verifying a release has a
+# clone and a Python; requiring a Docker daemon to check a signature means the
+# only people who can check it are the people who produced it.
+release.subject: ## Compute the release subject digest
+	@python3 tools/release_subject.py compute
+
+release.verify: ## Verify the release subject against this tree
+	@python3 tools/release_subject.py verify
 
 manifest-update: ##manifest-update
 	@echo "--- Updating repository manifest ---"
