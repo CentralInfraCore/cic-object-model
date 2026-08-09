@@ -89,7 +89,10 @@ func TestMain(m *testing.M) {
 // vectors and exits 0 has not run the corpus, so the counts are asserted
 // rather than reported.
 var expectedCounts = map[string]int{
-	"materialization": 13,
+	// 14 since materialization/014_hostile_keys: mapping keys were written
+	// verbatim while the quoting rule applied only to values, so a child named
+	// `a: b` made this package return bytes that are not YAML.
+	"materialization": 14,
 	// 7 since model 0.2: `invalid/008_cyclic_primitive_declaration` was
 	// removed. It asserted that a repeated primitive name is a cycle, which
 	// INV-005 no longer treats as one — under INV-035 a primitive's payload

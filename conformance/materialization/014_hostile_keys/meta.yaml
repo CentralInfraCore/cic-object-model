@@ -1,0 +1,21 @@
+---
+id: materialization/014_hostile_keys
+title: Mapping keys are written under the scalar quoting rule
+invariants: [INV-043, INV-011]
+description: >-
+  Keys used to be written verbatim while the quoting rule of SPEC 8.8.1 was
+  applied only to values. A child named `a: b` therefore produced `a: b:`,
+  which is not the same mapping and is not YAML — PyYAML rejects it with
+  "mapping values are not allowed here". Go returned those bytes, because it
+  did not reparse what it wrote; Rust revalidated its own output and so
+  surfaced the same defect as a rejection instead. Neither produced a usable
+  object.
+
+  The keys here are the four ways a key can stop meaning itself: a structural
+  `: `, a YAML 1.1 boolean word, a number, and leading/indicator characters.
+  The opaque payload carries three of them as domain data (INV-011), which is
+  where an author's keys arrive unfiltered.
+
+  This vector does not settle addressing. A key containing a `.` still prints
+  an address both resolvers split into two segments; that needs an escape
+  grammar or a name restriction and is recorded separately.

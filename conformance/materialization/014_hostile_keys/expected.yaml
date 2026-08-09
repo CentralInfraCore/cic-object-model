@@ -1,0 +1,57 @@
+---
+values:
+  'a: b':
+    values: x
+    origin: [schema]
+    shape:
+      values:
+        type:
+          values: scalar
+          origin: [schema]
+        scalar_type:
+          values: string
+          origin: [schema]
+      origin: [schema]
+  'on':
+    values: y
+    origin: [schema]
+    shape:
+      values:
+        type:
+          values: scalar
+          origin: [schema]
+        scalar_type:
+          values: string
+          origin: [schema]
+      origin: [schema]
+  '1500':
+    values: z
+    origin: [schema]
+    shape:
+      values:
+        type:
+          values: scalar
+          origin: [schema]
+        scalar_type:
+          values: string
+          origin: [schema]
+      origin: [schema]
+  blob:
+    values:
+      'no': plain
+      '#hash': plain
+      ' leading': plain
+    origin: [yaml]
+    shape:
+      values:
+        type:
+          values: opaque
+          origin: [schema]
+      origin: [schema]
+origin: [yaml]
+shape:
+  values:
+    type:
+      values: object
+      origin: [schema]
+  origin: [schema]
