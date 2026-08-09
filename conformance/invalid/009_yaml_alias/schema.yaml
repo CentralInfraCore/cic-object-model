@@ -1,0 +1,11 @@
+---
+model: "0.2"
+root:
+  shape: object
+  children:
+    mtu:
+      shape: scalar
+      scalar_type: integer
+    mtu_backup:
+      shape: scalar
+      scalar_type: integer

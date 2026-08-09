@@ -1,11 +1,5 @@
 package objectmodel
 
-import (
-	"fmt"
-
-	"gopkg.in/yaml.v3"
-)
-
 // CanonicalObject is Validated<Canonical<CICObject>> (SPEC INV-032): the type
 // of a module's input, and the only thing that may cross the module boundary
 // of SPEC §9.
@@ -64,10 +58,9 @@ func Materialize(schemaYAML, inputYAML []byte) (CanonicalObject, error) {
 		return nil, err
 	}
 
-	var input any
-	if err := yaml.Unmarshal(inputYAML, &input); err != nil {
-		return nil, newError(CodeMalformedDocument, "INV-007", StageEntryValidation, "$",
-			fmt.Sprintf("authoring input is not valid YAML: %v", err))
+	input, err := parseDocument(inputYAML, "INV-007", StageEntryValidation, "the input")
+	if err != nil {
+		return nil, err
 	}
 	if input == nil {
 		input = map[string]any{}
@@ -128,10 +121,9 @@ func Materialize(schemaYAML, inputYAML []byte) (CanonicalObject, error) {
 // or a hand-forged object, so without a schema-free validation entry point
 // two rows of the table would be unfalsifiable.
 func ValidateCanonicalDocument(objectYAML []byte) error {
-	var raw any
-	if err := yaml.Unmarshal(objectYAML, &raw); err != nil {
-		return newError(CodeMalformedDocument, "INV-001", StageFinalValidation, "$",
-			fmt.Sprintf("object is not valid YAML: %v", err))
+	raw, err := parseDocument(objectYAML, "INV-001", StageFinalValidation, "the object")
+	if err != nil {
+		return err
 	}
 	return validateDocument(normalize(raw))
 }

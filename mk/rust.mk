@@ -14,17 +14,11 @@
 # docker-compose.yml so the pin cannot drift between the two files.
 RUST_IMAGE_DIGEST ?= $(shell grep '^x-rust-version:' docker-compose.yml | grep -oE 'sha256:[a-f0-9]{64}')
 
-# Where cargo's caches live on the host. Outside the repository on purpose: a
-# target directory is large, and this repository sits under a synced tree.
-RUST_CACHE_DIR ?= $(HOME)/.cache/cic-object-model
-
 # Line-coverage floor, to ratchet up (never down) — parity with the Go
 # COVERAGE_MIN and the Python --cov-fail-under gate.
 RUST_COV_MIN ?= 90
 
 RUST_CRATE_DIR ?= rust
-
-export RUST_CACHE_DIR
 
 # RUST_EXEC runs a cargo command in the rust-builder. It ensures rustfmt and
 # clippy are present (idempotent, cheap once installed) so every rust target is
@@ -53,13 +47,9 @@ rust.toolchain-pin: ## Verify the Rust image is pinned by digest
 		echo "the anchor is present but the service does not use it."; exit 1; }
 	@echo "rust-builder resolves to the pinned digest"
 
-# rust.up creates the cache directories before starting the container.
-#
-# Docker creates a missing bind source as root, and this service runs as the
-# host user, so a first run would produce two root-owned directories cargo
-# cannot write. Creating them here means they belong to whoever ran make.
+# The cargo caches are named volumes, made writable by Dockerfile.rust rather
+# than by anything here — see the note in that file. Nothing to create.
 rust.up: ## Start the rust-builder container
-	@mkdir -p "$(RUST_CACHE_DIR)/cargo" "$(RUST_CACHE_DIR)/target"
 	@docker compose up -d rust-builder
 
 rust.shell: rust.up ## Interactive shell in the rust-builder

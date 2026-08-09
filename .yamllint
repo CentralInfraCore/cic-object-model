@@ -22,6 +22,13 @@ file-rules:
 
 ignore: |
   /p_venv/
+  # A conformance vector whose whole point is that the document is invalid.
+  # invalid/008 declares one key twice, which is exactly what INV-041 forbids
+  # and what the vector exists to prove both implementations reject. Linting it
+  # would mean the repository could not hold a negative vector for any defect a
+  # linter also knows about — and the vector is the stronger check, because it
+  # says what MUST happen rather than warning that something looks wrong.
+  /conformance/invalid/008_duplicate_mapping_key/input.yaml
   # KB companion YAMLs sit beside every Python source file (module: + objects:)
   # and are machine-generated. They are data, not hand-authored config, and the
   # generator emits sequences at column 0, which yamllint's default indentation

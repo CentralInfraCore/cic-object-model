@@ -223,6 +223,44 @@ The verbosity is the price of `$.values.values.values.mtu` and `$.values.mtu`
 not being two names for one node. In a model whose purpose is that evidence can
 reference a position, an address that is not unique is worse than a long one.
 
+### 2.6 What the serialization may not do to an address
+
+INV-040 makes an address unique in the *model*. Two things in the serialization
+can defeat that before the model ever sees the document, and both are left to
+the YAML library unless this specification says otherwise — which, until 0.2,
+it did not.
+
+**INV-041** — A mapping MUST NOT declare the same key twice. A document that
+does MUST be rejected, at the stage that read it.
+
+The same name at different addresses is not a duplicate: `a.a`, two sibling
+mappings that each declare `x`, and two sequence entries that each declare `x`
+are four distinct addresses and all are legal. What is forbidden is one address
+written twice.
+
+YAML itself does not settle this. Of the two implementations of this document,
+one rejected such a mapping and the other silently kept the last value — for a
+commit, undetected, because no vector contained a duplicate and the two were
+assumed to agree. One address with two values has no single answer, and a model
+that resolves it by position in the file is deciding provenance by luck.
+
+**INV-042** — A document MUST NOT contain a YAML anchor or alias. A document
+that does MUST be rejected, at the stage that read it.
+
+Two reasons, and the second is the one that matters:
+
+1. An alias makes one value reachable from two addresses. `origin` has four
+   forms (§5.2) and none of them says "the same value as somewhere else", so an
+   aliased node's provenance is not expressible in this model.
+2. Alias expansion is an amplification vector. Measured on one of this
+   document's implementations: **393 bytes of nested aliases composed to
+   12,345,678 nodes in 2.7 seconds**, a factor of about 31,000, on input that
+   is untrusted by construction. The expansion happens while the tree is being
+   built, so a size limit applied afterwards is applied after the cost.
+
+Neither invariant needs the schema, so both are enforceable wherever a document
+is read — which is why they are stated here rather than in §8.
+
 ---
 
 ## 3. The two planes
@@ -760,9 +798,10 @@ MUST produce a byte-identical canonical object.
 
 - **INPUT:** raw authoring tree
 - **OUTPUT:** structurally legal authoring tree
-- **MUST:** reject input containing an `origin` member (INV-007); reject
-  authoring at or below a sealed boundary (INV-019); reject undeclared
-  arbitrary objects (INV-029)
+- **MUST:** reject a document with a duplicate mapping key (INV-041) or a YAML
+  anchor or alias (INV-042); reject input containing an `origin` member
+  (INV-007); reject authoring at or below a sealed boundary (INV-019); reject
+  undeclared arbitrary objects (INV-029)
 - **MUST NOT:** perform reference resolution, template expansion, or default
   application
 - **FAILURE:** reject, before the input can participate in any later stage
@@ -996,6 +1035,8 @@ rule was actually protecting.
 | INV-038 | A normative change ships with its vectors and every implementation | 11.1 |
 | INV-039 | Schema-less final validation is key-directed and weaker | 4.3 |
 | INV-040 | Every node has exactly one address | 2.5 |
+| INV-041 | A mapping declares no key twice | 2.6 |
+| INV-042 | No YAML anchors or aliases | 2.6 |
 
 ---
 
