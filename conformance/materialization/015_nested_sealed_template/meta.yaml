@@ -1,0 +1,26 @@
+---
+id: materialization/015_nested_sealed_template
+title: A sealed_from chain expands to the template it ultimately names
+invariants: [INV-015, INV-005, INV-044]
+description: >-
+  A template entry may itself be sealed from another template. One
+  implementation expanded the chain; the other resolved exactly one level, and
+  because a `sealed_from` node declares no shape of its own the node defaulted
+  to object and materialized as `{}`. Two different objects from one schema:
+
+    go:   values: from-inner
+          origin: [{sealed: {template: $inner, path: $.leaf}}, schema]
+    rust: values: {}
+          origin: [{sealed: {template: $outer, path: $.mid}}]
+
+  The corpus had no nested template, so neither runner could see it. Vector 003
+  and 004 cover a single level only.
+
+  Note what the expansion also settles, which the specification does not state:
+  the origin names the INNERMOST template and path — the place the value came
+  from — not the mount point where the chain was entered. This vector pins that
+  answer; SPEC 5 should say it (audit semantic F-06).
+
+  Expansion is bounded at 64 levels in both implementations. Without a bound a
+  chain of templates referring to each other is an unbounded loop over input a
+  caller supplies (audit semantic F-07).
