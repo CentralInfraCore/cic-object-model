@@ -1,0 +1,8 @@
+---
+error:
+  code: E_MALFORMED_DOCUMENT
+  invariant: INV-043
+  stage: final-validation
+  path: $
+  detail: >-
+    the object contains more than one YAML document; an object is exactly one

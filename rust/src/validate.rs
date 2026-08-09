@@ -79,10 +79,24 @@ fn walk(node: &Map, path: &str) -> Result<()> {
                 format!("{path}.default"),
                 "a canonical node carries no `default` member; the value is already materialized",
             )),
+            // INV-003 — a primitive member is itself a CIC node.
+            //
+            // This used to recurse when the member was a mapping and accept it
+            // otherwise, so `shape: 7` passed: the validator said `valid` for an
+            // object whose `shape` is a number. Go rejected the same object. An
+            // `if let` with no `else` is how a check becomes a check of the
+            // cases that happen to reach it.
             other if is_primitive(other) => {
-                if let Some(pm) = member.as_map() {
-                    walk(pm, &format!("{path}.{other}"))?;
-                }
+                let Some(pm) = member.as_map() else {
+                    return Err(Error::new(
+                        code::MALFORMED_DOCUMENT,
+                        "INV-003",
+                        Stage::FinalValidation,
+                        format!("{path}.{other}"),
+                        "a primitive member must itself be a CIC node",
+                    ));
+                };
+                walk(pm, &format!("{path}.{other}"))?;
             }
             // INV-021 — `values`, `origin` and the eight primitives. Anything
             // else has no interpretation, including `cic`: 0.2 moved the model

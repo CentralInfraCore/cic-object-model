@@ -1,0 +1,6 @@
+---
+id: validation/011_more_than_one_document
+title: A byte string carrying more than one YAML document is rejected
+invariants: [INV-043, INV-039]
+description: >-
+  SPEC 8.8.1 says one document per object. BOTH implementations used to drop the rest in silence — one by taking the first of the parsed documents, the other because yaml.Unmarshal reads the first and says nothing about what follows. Validation therefore authenticated a PREFIX of the supplied bytes: `valid` was printed for a file whose second document was never looked at, while a consumer reading the same bytes with a multi-document loader saw both. The half that was checked is not necessarily the half a reader acts on.

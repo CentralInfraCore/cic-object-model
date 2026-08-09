@@ -18,7 +18,7 @@ implementation. Agreement *between* implementations is still an untested claim.
 |---|---|---|---|
 | INV-001 | Exactly one `values` per node | 2.1 | `materialization/001_origin_yaml` <br> `materialization/005_closure_structured` <br> `materialization/007_normalize_scalar` <br> `materialization/008_normalize_list` <br> `materialization/009_normalize_map` |
 | INV-002 | Exactly one `origin` per canonical node | 2.1 | `materialization/001_origin_yaml` <br> `materialization/002_origin_schema` <br> `materialization/005_closure_structured` <br> `materialization/007_normalize_scalar` <br> `materialization/008_normalize_list` <br> `materialization/009_normalize_map` <br> `validation/002_origin_empty` |
-| INV-003 | Every primitive is itself a CIC node | 2.2 | `validation/003_origin_not_terminal` |
+| INV-003 | Every primitive is itself a CIC node | 2.2 | `validation/003_origin_not_terminal` <br> `validation/010_primitive_member_is_not_a_node` |
 | INV-004 | `origin` is terminal | 2.3 | `validation/003_origin_not_terminal` |
 | INV-005 | Materialization terminates because the schema is finite | 2.3 | **see Unvectorizable** |
 | INV-006 | No documentation member on a canonical node | 2.4 | `validation/004_documentation_member` |
@@ -58,7 +58,7 @@ implementation. Agreement *between* implementations is still an untested claim.
 | INV-040 | Every node has exactly one address | 2.5 | **see Unvectorizable** | `validation/001_origin_yaml_schema_conflict` <br> `validation/002_origin_empty` |
 | INV-041 | A mapping declares no key twice | 2.6 | `invalid/008_duplicate_mapping_key` |
 | INV-042 | No YAML anchors or aliases | 2.6 | `invalid/009_yaml_alias` |
-| INV-043 | The canonical serialization, byte for byte | 8.8.1 | every `materialization/*` vector: the runners compare bytes <br> `materialization/014_hostile_keys` |
+| INV-043 | The canonical serialization, byte for byte | 8.8.1 | every `materialization/*` vector: the runners compare bytes <br> `materialization/014_hostile_keys` <br> `validation/011_more_than_one_document` |
 | INV-044 | Canonical member order | 8.8.2 | `materialization/006_closure_opaque` <br> `materialization/012_discriminator_payload_keywords` <br> `materialization/013_access_inherit_injection` |
 
 **32 of 34 invariants are vector-covered.** The remaining

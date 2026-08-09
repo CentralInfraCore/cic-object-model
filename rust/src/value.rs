@@ -162,6 +162,25 @@ pub fn parse(data: &[u8], stage: Stage, path: &str, what: &str) -> Result<Value>
         )
     })?;
 
+    // §8.8.1 — one document per object. A second one used to be dropped
+    // silently by taking `.next()`, so validation authenticated a PREFIX of the
+    // supplied bytes: `-validate` printed `valid` for a file whose second
+    // document was never looked at, while a consumer reading the same bytes
+    // with a multi-document loader saw both. That is a parser-differential, and
+    // the half that was checked is not the half a reader might act on.
+    if docs.len() > 1 {
+        return Err(Error::new(
+            code::MALFORMED_DOCUMENT,
+            "INV-043",
+            stage,
+            path,
+            format!(
+                "{what} contains {} YAML documents; an object is exactly one",
+                docs.len()
+            ),
+        ));
+    }
+
     // An empty document is the empty mapping. `{}`, an empty file and a file
     // holding only a `---` marker are the same input as far as this model is
     // concerned, and the corpus contains more than one of them. A bare `---`
