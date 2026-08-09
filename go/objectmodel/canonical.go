@@ -55,3 +55,22 @@ func (n *Node) projectValue() any {
 func (n *Node) document(_ string) any {
 	return n.project()
 }
+
+// Canonicalize returns the canonical serialization of a node tree (SPEC §8.8).
+//
+// It exists so that a consumer holding a CanonicalObject can ask a question it
+// could not ask before 0.2: do this object's two views agree? A CanonicalObject
+// offers a node tree AND a byte string, and nothing forced them to describe the
+// same object — a caller reading the tree and a caller reading the bytes could
+// be told different things by the same value.
+//
+// Answering it requires the bytes to be a FUNCTION of the tree, which they
+// became when §8.8.1 fixed the serialization. Until then re-serializing a tree
+// and comparing could differ from the original for reasons no one was wrong
+// about, so the question had no answer to give.
+func Canonicalize(root *Node) []byte {
+	if root == nil {
+		return nil
+	}
+	return emitCanonical(root.project())
+}
