@@ -1,0 +1,28 @@
+[package]
+name = "cic-object-model"
+version = "0.2.0"
+edition = "2021"
+rust-version = "1.96"
+description = "Reference implementation of the CIC object model, model version 0.2"
+license = "CC-BY-NC-SA-4.0"
+repository = "https://github.com/CentralInfraCore/cic-object-model"
+
+# The Go implementation is the sibling, not a dependency. These two are
+# independent implementations of ../SPEC.md and must never link to each other:
+# the conformance corpus is the only thing they share, and it is the only thing
+# that makes their agreement mean anything.
+
+[dependencies]
+saphyr = "0.0.6"
+# The event scanner, used to refuse aliases BEFORE a tree is composed — see
+# the note in src/value.rs. It is saphyr's own parser, so this pins no second
+# YAML implementation.
+saphyr-parser = "0.0.6"
+
+[[bin]]
+name = "cic-materialize"
+path = "src/bin/cic_materialize.rs"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
