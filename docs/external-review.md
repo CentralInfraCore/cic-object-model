@@ -3,13 +3,16 @@
 `devel` reaches `main` only after an **independent external review** of the
 release subject. This document is the procedure and the evidence format.
 
-The rule exists because of what the first one found. An external audit of
-`e173149` produced nineteen findings, and the four checked first were all
-confirmed by measurement within minutes: the model version had split five ways,
-`Origin()` handed out the node's own slice, the origin grammar accepted forms it
-declares invalid, and the manifest gate could not see a file missing from the
-manifest. Every one of them had passed a full green CI, repeatedly, because the
-gates were written by the same reading that wrote the code.
+The rule exists because of what these reviews find. The first, against
+`e173149`, produced nineteen findings; the four checked first were confirmed by
+measurement within minutes. The second, against `cbaf928`, produced
+thirty-seven across three threads, and nine of them were reproduced here by
+execution — including a five-byte input that panicked a debug build and a
+schema three lines long that made the only producer of canonical objects return
+bytes no YAML parser accepts.
+
+Every one of them had passed a full green CI, repeatedly, because the gates were
+written by the same reading that wrote the code.
 
 That is the property an external review has and no internal gate can acquire:
 **it does not share the author's blind spot.**
@@ -65,12 +68,19 @@ its **own thread**, from a cold start.
 
 ### Why three
 
-One prompt gets one angle. The first audit of this repository was a claim audit,
-and it was extremely productive — and it found nothing about YAML alias
-amplification, which a security-angled prompt would have gone straight to, and
-nothing about the two implementations disagreeing on duplicate keys, which a
-divergence-angled prompt would have found immediately. Both were real. Both were
-found later, by accident.
+One prompt gets one angle, and the first commissioned review proved it in both
+directions.
+
+The claim angle found that the review gate written the day before could not be
+satisfied at all — a fixed-point defect nothing here would have found, because
+the only test exercising it happened to avoid the condition that breaks it. The
+divergence angle found three cases where the two implementations disagreed on
+ordinary input, all of them invisible to a corpus containing no wrong-typed
+input. The adversarial angle found that a boundary check added that same day
+bound two snapshots rather than the object, and that the sole producer of
+canonical objects could return bytes that are not YAML.
+
+No one of those prompts would have found the other two's findings.
 
 The three angles are deliberately not refinements of each other.
 
@@ -91,51 +101,121 @@ Each prompt below is therefore **self-contained**: it names the repository, the
 subject digest and what to do, and assumes no earlier conversation. Do not
 summarise the other two threads into a third.
 
+### A preamble every thread carries
+
+Each prompt is prefixed with the same three lines and nothing else:
+
+```
+Repository: https://github.com/CentralInfraCore/cic-object-model  (branch: devel)
+Release subject digest: <digest>
+Do not fix the repository. Do not assume the documentation, the specification,
+the corpus or an implementation is correct. Support every finding with concrete
+evidence from the repository.
+```
+
+The last sentence is load-bearing. The first review's most expensive findings
+were places where a document and the code disagreed, and a reviewer who starts
+from "the specification says X, does the code do X" cannot find a defect in X.
+
 ### Prompt 1 — Claim audit
 
-> The repository at `<URL>` is a normative specification with two reference
-> implementations. Its release subject digest is `<digest>`.
+> Examine what the repository claims about itself, and identify which of those
+> claims are:
 >
-> It makes claims about itself: in `SPEC.md`, in `README.md`, in doc comments,
-> in commit messages, and in the names of its own tests. Find claims that are
-> not true of the tree, or that are true only in a weaker sense than the wording
-> implies.
+> * factually false,
+> * stale,
+> * only partly true,
+> * unproven,
+> * stated more strongly than the implementation or the tests establish.
 >
-> Prioritise claims a reader would rely on: that an invariant is enforced, that
-> a gate checks something, that a test proves a property, that two things agree.
-> For each, state how you checked it and what you found — measurement, not
-> reading. Say which findings you could not verify.
+> Do not examine only the README. Compare the claims of the README, SPEC, docs,
+> conformance corpus, tooling, CI and the actual implementations **against each
+> other**.
+>
+> For each finding give:
+>
+> **claim → evidence → observed reality → classification → consequence**
+>
+> Do not treat a passing test as automatic proof of the general claim behind it.
 
-### Prompt 2 — Divergence hunt
+### Prompt 2 — Semantic divergence audit
 
-> The repository at `<URL>` ships two independent implementations of one
-> specification, in `go/` and `rust/`, plus a conformance corpus in
-> `conformance/`. Release subject digest: `<digest>`.
+> Find places where the repository's different representations describe the same
+> semantics differently.
 >
-> Find inputs on which the two implementations behave differently, and
-> behaviours neither the corpus nor the specification pins. Look especially at
-> what each delegates to its language's libraries — YAML parsing, number
-> formatting, string handling, map ordering — because that is where two
-> conformant implementations diverge without either being wrong.
+> Compare primarily:
 >
-> For each divergence, say which implementation you would consider correct and
-> what the specification would have to say to settle it.
+> **SPEC ↔ conformance corpus ↔ machine-readable schema ↔ Go implementation ↔
+> Rust implementation ↔ documentation ↔ tooling**
+>
+> Look especially for:
+>
+> * the same rule interpreted differently;
+> * unspecified implementation decisions;
+> * behaviour the corpus fixes but the SPEC does not state;
+> * a normative requirement the corpus cannot distinguish;
+> * two different behaviours that could both currently be considered conformant;
+> * stale or mutually contradictory documentation;
+> * semantics that come from one language's libraries rather than from the
+>   specification.
+>
+> **There are two independent implementations**, `go/` and `rust/`, and they
+> currently produce byte-identical output on every vector. Find inputs on which
+> they DIVERGE — especially where each delegates to its own language's libraries
+> (YAML parsing, number formatting, string handling, map ordering), because that
+> is where two conformant implementations differ without either being wrong.
+>
+> Where a third implementation would be needed to decide whether the
+> specification is genuinely unambiguous, mark it **latent cross-implementation
+> ambiguity**.
+>
+> For each finding:
+>
+> **semantic question → competing interpretations → repo evidence → current
+> implementation choice → specified or accidental? → consequence**
 
-### Prompt 3 — Adversarial
+### Prompt 3 — Adversarial boundary audit
 
-> The repository at `<URL>` defines an object model whose inputs are untrusted
-> by construction, and a module boundary that is meant to be a trust boundary.
-> Release subject digest: `<digest>`.
+> Do not check whether the happy path follows the SPEC. Try to REFUTE the
+> repository's security and structural claims.
 >
-> Attack it. Construct inputs or values that cross a boundary carrying something
-> the model says cannot be there: a forged object, an object whose parts
-> disagree with each other, an input that costs more to process than it costs to
-> write, a document whose meaning depends on which parser reads it.
+> Attack in particular:
 >
-> Prefer working demonstrations over arguments. Where a defence exists, check
-> whether it fails safely and whether the failure is loud.
+> * the materializer → canonical object → module boundary;
+> * construction guarantees of the INV-031 / INV-032 kind;
+> * type-system and API boundary bypasses;
+> * hand-forged or partly legitimate objects;
+> * gaps between canonical serialization and validation;
+> * weaknesses of schema-less validation;
+> * recursive and deeply nested structures;
+> * input-amplification cases;
+> * inputs that are cheap to produce but disproportionately expensive to
+>   validate, materialize, canonicalize or reject;
+> * memory, CPU, recursion and output amplification;
+> * a payload that crosses a boundary although the model says it should not be
+>   representable.
+>
+> The goal is not to confirm the invariants but to find a **minimal
+> counterexample**.
+>
+> For each finding:
+>
+> **claimed invariant → attack construction → observed result → minimal
+> reproducer → violated guarantee → severity**
+>
+> If you cannot execute an attack, do not report it as a successful defence
+> merely because you found no counterexample.
 
----
+### On a second and later round
+
+A repeat review is given the same three prompts and one extra sentence: that
+this is round *n* against the same repository, and how many findings from the
+previous round are recorded as closed — **without** describing the fixes.
+
+The count without the descriptions is deliberate. It lets the reviewer skip
+ground already covered, and it leaves them free to check whether those findings
+really are closed, which is a question the people who closed them cannot answer
+about themselves.
 
 ## What the reviewer is given
 
