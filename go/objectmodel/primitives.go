@@ -63,9 +63,15 @@ func attachPrimitives(n *Node) error {
 			// The `shape` primitive is assembled from the schema keywords
 			// `shape:` and `scalar_type:`, not declared as a payload.
 			if s.hasShape {
-				sv := map[string]any{"type": s.shape}
+				// Ordered, not a plain map: INV-044 fixes this payload as
+				// `type` then `scalar_type`, and a Go map would hand the
+				// serializer whatever order it felt like — which, sorted,
+				// put `scalar_type` first in every object this package
+				// produced.
+				sv := newOrderedMap()
+				sv.set("type", s.shape)
 				if s.scalarType != "" {
-					sv["scalar_type"] = s.scalarType
+					sv.set("scalar_type", s.scalarType)
 				}
 				decl, declared = sv, true
 			}
@@ -124,7 +130,7 @@ func primitiveNode(path string, payload any, org Origin) *Node {
 		return n
 	case map[string]any:
 		om := newOrderedMap()
-		for _, k := range sortedKeys(v) {
+		for _, k := range keysInOrder(payload) {
 			om.set(k, v[k])
 		}
 		return primitiveNode(path, om, org)
@@ -157,7 +163,7 @@ func normalizePrimitive(name string, payload any, path string) (any, error) {
 			"access must be a mapping of operations")
 	}
 	out := newOrderedMap()
-	for _, op := range sortedKeys(m) {
+	for _, op := range keysInOrder(payload) {
 		// INV-024 — the operations are `read` and `modify`. `write` is not a
 		// valid operation name.
 		if op != "read" && op != "modify" {
@@ -192,7 +198,23 @@ func normalizePrimitive(name string, payload any, path string) (any, error) {
 					"default_injection is valid under access.read only")
 			}
 		}
-		out.set(op, normalize(merged))
+		// §8.8.2 fixes the order of an access operation block: rules,
+		// inherit, default_injection. It is a fixed order rather than the
+		// declaration order plus an append, because `inherit` is INJECTED when
+		// absent and the vectors put it BETWEEN a declared `rules` and a
+		// declared `default_injection` — a position no append reproduces.
+		ordered := newOrderedMap()
+		for _, k := range []string{"rules", "inherit", "default_injection"} {
+			if v, ok := merged[k]; ok {
+				ordered.set(k, normalize(v))
+			}
+		}
+		for _, k := range keysInOrder(m[op]) {
+			if !ordered.has(k) {
+				ordered.set(k, normalize(merged[k]))
+			}
+		}
+		out.set(op, ordered)
 	}
 	return out, nil
 }

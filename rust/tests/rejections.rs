@@ -432,3 +432,99 @@ impl<T, E> UnwrapErrOrPanic<T, E> for Result<T, E> {
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// §8.8.1 scalar quoting, through the real path
+// ---------------------------------------------------------------------------
+
+/// The quoting table of §8.8.1, exercised through an opaque payload.
+///
+/// An opaque payload carries whatever the author wrote, so it is the one place
+/// an arbitrary scalar reaches the serializer without the schema constraining
+/// it. Going through `materialize` rather than calling the emitter directly is
+/// deliberate: the rule has to hold on the path an object actually takes.
+///
+/// The Go implementation carries the same table in its own test. §8.8.1 is one
+/// rule, and two readings of it would put the two emitters back where they
+/// started — zero byte-identical objects across thirteen vectors.
+#[test]
+fn scalars_a_reader_could_misread_are_quoted() {
+    let schema = format!(
+        "model: \"{MODEL_VERSION}\"\nroot:\n  shape: object\n  children:\n    p:\n      shape: opaque\n"
+    );
+
+    let emit = |literal: &str| -> String {
+        let input = format!("p:\n  v: {literal}\n");
+        let obj = materialize(schema.as_bytes(), input.as_bytes())
+            .unwrap_or_else(|e| panic!("{literal} did not materialize: {e}"));
+        let text = String::from_utf8(obj.canonical_yaml().to_vec()).expect("utf-8");
+        text.lines()
+            .find_map(|l| l.trim().strip_prefix("v: ").map(str::to_string))
+            .unwrap_or_else(|| panic!("no `v:` line for {literal}:\n{text}"))
+    };
+
+    // Written quoted in the input so the parser hands the crate a STRING, and
+    // the question is only what the emitter does with it.
+    for s in [
+        "true",
+        "false",
+        "yes",
+        "no",
+        "on",
+        "off",
+        "null",
+        "~",
+        "On",
+        "OFF",
+        "Null",
+        "1500",
+        "-3",
+        "+7",
+        "0",
+        "1.5",
+        "1e6",
+        "0x10",
+        "0o17",
+        "017",
+        "1_000",
+        ".inf",
+        ".NaN",
+        "-.inf",
+        "1:30",
+        "",
+        " leading",
+        "trailing ",
+        "-dash",
+        "#hash",
+        "*alias",
+        "key: value",
+    ] {
+        let literal = format!("'{}'", s.replace('\'', "''"));
+        let got = emit(&literal);
+        assert!(
+            got.starts_with('\''),
+            "{s:?} was emitted plain as {got}; a reader could take it for something else"
+        );
+    }
+
+    for s in [
+        "scalar",
+        "config",
+        "allow",
+        "10.0.0.1/24",
+        "not-a-primitive",
+        "a:b",
+        "a#b",
+        "yes-ish",
+        "ontology",
+        "nulled",
+        "it's",
+    ] {
+        let literal = format!("'{}'", s.replace('\'', "''"));
+        let got = emit(&literal);
+        assert!(
+            !got.starts_with('\''),
+            "{s:?} was quoted as {got}; plain is unambiguous here"
+        );
+    }
+}

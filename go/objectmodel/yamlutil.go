@@ -1,11 +1,8 @@
 package objectmodel
 
 import (
-	"bytes"
 	"fmt"
 	"sort"
-
-	"gopkg.in/yaml.v3"
 )
 
 // orderedMap is a mapping with an explicit key order.
@@ -42,9 +39,12 @@ func (m *orderedMap) has(k string) bool {
 	return ok
 }
 
-// asMap accepts both shapes gopkg.in/yaml.v3 can produce for a mapping.
+// asMap accepts every shape a mapping arrives in: the two gopkg.in/yaml.v3 can
+// produce, and the ordered form fromNode builds.
 func asMap(v any) (map[string]any, bool) {
 	switch t := v.(type) {
+	case *orderedMap:
+		return t.vals, true
 	case map[string]any:
 		return t, true
 	case map[any]any:
@@ -57,6 +57,26 @@ func asMap(v any) (map[string]any, bool) {
 	return nil, false
 }
 
+// keysInOrder returns the keys of a mapping in the order INV-044 requires: the
+// order they were written, when that is still known.
+//
+// A plain map has lost it — Go map iteration is randomised, so sorting is the
+// only way to be deterministic at all, and every caller that reaches this
+// branch is working on a value that came from somewhere order was already gone.
+// The ordered branch is the one that matters, and it exists because sorting
+// used to be the ONLY branch.
+func keysInOrder(v any) []string {
+	if om, ok := v.(*orderedMap); ok {
+		out := make([]string, len(om.keys))
+		copy(out, om.keys)
+		return out
+	}
+	if m, ok := asMap(v); ok {
+		return sortedKeys(m)
+	}
+	return nil
+}
+
 func sortedKeys(m map[string]any) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {
@@ -66,13 +86,14 @@ func sortedKeys(m map[string]any) []string {
 	return keys
 }
 
-// normalize converts a plain decoded YAML value into the orderedMap form the
-// canonicaliser and the final validator both work on. Mapping keys are
-// sorted, which is what makes payload serialization deterministic.
+// normalize converts a decoded YAML value into the orderedMap form the
+// canonicaliser and the final validator both work on, KEEPING the order it
+// arrived in (INV-044). It used to sort, which is what reordered opaque
+// payloads.
 func normalize(v any) any {
 	if m, ok := asMap(v); ok {
 		om := newOrderedMap()
-		for _, k := range sortedKeys(m) {
+		for _, k := range keysInOrder(v) {
 			om.set(k, normalize(m[k]))
 		}
 		return om
@@ -87,66 +108,17 @@ func normalize(v any) any {
 	return v
 }
 
-func toYAMLNode(v any) (*yaml.Node, error) {
-	switch t := v.(type) {
-	case *orderedMap:
-		n := &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
-		for _, k := range t.keys {
-			kn := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: k}
-			vn, err := toYAMLNode(t.vals[k])
-			if err != nil {
-				return nil, err
-			}
-			n.Content = append(n.Content, kn, vn)
-		}
-		return n, nil
-	case []any:
-		n := &yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq"}
-		for _, e := range t {
-			en, err := toYAMLNode(e)
-			if err != nil {
-				return nil, err
-			}
-			n.Content = append(n.Content, en)
-		}
-		return n, nil
-	default:
-		n := &yaml.Node{}
-		if err := n.Encode(v); err != nil {
-			return nil, err
-		}
-		return n, nil
-	}
-}
-
 // encodeCanonical is the serializer half of SPEC §8.8.
-func encodeCanonical(v any) ([]byte, error) {
-	root, err := toYAMLNode(v)
-	if err != nil {
-		return nil, newError(CodeMalformedDocument, "INV-030", StageCanonicalization, "$",
-			fmt.Sprintf("canonical serialization failed: %v", err))
-	}
-	var buf bytes.Buffer
-	enc := yaml.NewEncoder(&buf)
-	enc.SetIndent(2)
-	if err := enc.Encode(root); err != nil {
-		return nil, newError(CodeMalformedDocument, "INV-030", StageCanonicalization, "$",
-			fmt.Sprintf("canonical serialization failed: %v", err))
-	}
-	if err := enc.Close(); err != nil {
-		return nil, newError(CodeMalformedDocument, "INV-030", StageCanonicalization, "$",
-			fmt.Sprintf("canonical serialization failed: %v", err))
-	}
-	return buf.Bytes(), nil
-}
-
 // deepCopy protects an opaque payload (SPEC INV-028: preserved verbatim) from
 // aliasing the caller's input tree.
 func deepCopy(v any) any {
 	if m, ok := asMap(v); ok {
-		out := make(map[string]any, len(m))
-		for k, vv := range m {
-			out[k] = deepCopy(vv)
+		// Ordered, because "verbatim" includes the order the author wrote
+		// (INV-044). Copying into a plain map preserved the values and lost
+		// exactly the property this function exists to protect.
+		out := newOrderedMap()
+		for _, k := range keysInOrder(v) {
+			out.set(k, deepCopy(m[k]))
 		}
 		return out
 	}

@@ -8,13 +8,12 @@
 package conformance
 
 import (
+	"bytes"
 	"errors"
 	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
-	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -209,22 +208,23 @@ func TestMaterialization(t *testing.T) {
 				t.Fatalf("materialization failed: %v", err)
 			}
 
-			// SPEC §10: the output must match expected.yaml exactly. §8.8
-			// never defines a canonical serialization, so "exactly" can only
-			// be checked semantically — see docs/spec-defects.md SD-010.
-			var got, want any
-			if err := yaml.Unmarshal(obj.CanonicalYAML(), &got); err != nil {
-				t.Fatalf("canonical output is not valid YAML: %v", err)
-			}
-			if err := yaml.Unmarshal(expected, &want); err != nil {
-				t.Fatalf("expected.yaml is not valid YAML: %v", err)
-			}
-			if !reflect.DeepEqual(got, want) {
+			// SPEC §10: the output must match expected.yaml exactly, and
+			// since §8.8.1 (INV-043) "exactly" means BYTE for byte.
+			//
+			// This used to compare parsed structure, because §8.8 defined no
+			// serialization and requiring identical bytes would have been
+			// inventing a rule the specification did not have. The cost of that
+			// was measurable and was measured: across these thirteen vectors
+			// the Go and Rust implementations produced ZERO byte-identical
+			// objects while agreeing on every one semantically, and a
+			// structural comparison cannot see member order at all — so one
+			// implementation reordering opaque payloads, data §4 promises to
+			// carry untouched, passed here without comment.
+			if !bytes.Equal(obj.CanonicalYAML(), expected) {
 				if *update {
-					writeExpectation(t, filepath.Join(dir, "expected.yaml"),
-						append([]byte("---\n"), corpusStyle(obj.CanonicalYAML())...))
+					writeExpectation(t, filepath.Join(dir, "expected.yaml"), obj.CanonicalYAML())
 				} else {
-					t.Errorf("canonical object does not match expected.yaml\n--- got ---\n%s\n--- want ---\n%s",
+					t.Errorf("canonical object does not match expected.yaml byte for byte\n--- got ---\n%s\n--- want ---\n%s",
 						obj.CanonicalYAML(), expected)
 				}
 			}
@@ -235,7 +235,7 @@ func TestMaterialization(t *testing.T) {
 			if err != nil {
 				t.Fatalf("second materialization failed: %v", err)
 			}
-			if !reflect.DeepEqual(obj.CanonicalYAML(), again.CanonicalYAML()) {
+			if !bytes.Equal(obj.CanonicalYAML(), again.CanonicalYAML()) {
 				t.Errorf("INV-030: materialization is not deterministic")
 			}
 		})
@@ -311,41 +311,6 @@ func assertRejected(t *testing.T, dir string, err error, want expectedError) {
 	if *update && t.Failed() {
 		rewriteExpectedError(t, dir, got, want)
 	}
-}
-
-// corpusStyle rewrites origin lists to the inline form the corpus is written
-// in, so an -update diff shows semantic changes and not a formatting churn
-// across every line. The comparison is semantic either way (§8.8 defines no
-// canonical serialization — docs/spec-defects.md SD-010), so this is purely so
-// the diff stays readable, which is the whole point of the flag.
-func corpusStyle(b []byte) []byte {
-	lines := strings.Split(string(b), "\n")
-	out := make([]string, 0, len(lines))
-	for i := 0; i < len(lines); i++ {
-		trimmed := strings.TrimRight(lines[i], " ")
-		if !strings.HasSuffix(trimmed, "origin:") {
-			out = append(out, lines[i])
-			continue
-		}
-		indent := trimmed[:len(trimmed)-len("origin:")]
-		var terms []string
-		j := i + 1
-		for ; j < len(lines); j++ {
-			item := strings.TrimSpace(lines[j])
-			if !strings.HasPrefix(item, "- ") || !strings.HasPrefix(lines[j], indent+"  - ") {
-				break
-			}
-			terms = append(terms, strings.TrimSpace(item[2:]))
-		}
-		if terms == nil {
-			// A sealed origin is a mapping, not a scalar list; leave it alone.
-			out = append(out, lines[i])
-			continue
-		}
-		out = append(out, indent+"origin: ["+strings.Join(terms, ", ")+"]")
-		i = j - 1
-	}
-	return []byte(strings.Join(out, "\n"))
 }
 
 // rewriteExpectedError regenerates expected-error.yaml from the error the

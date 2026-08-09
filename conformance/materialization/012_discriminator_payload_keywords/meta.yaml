@@ -1,10 +1,28 @@
 ---
 id: materialization/012_discriminator_payload_keywords
 title: Primitive-named keys below `values` are domain data
-invariants: [INV-011, INV-008, INV-028]
+invariants: [INV-011, INV-008, INV-028, INV-043, INV-044]
 description: >-
   The critical false-positive case. Under an opaque payload, keys named
   `values`, `default`, `origin` and `access` are ordinary domain data and MUST
   be preserved verbatim. This is why the model needs no global reserved words.
   Note `default: false` here is domain data, not a CIC marker — the case that
   makes a purely syntactic values+default discriminator unsound (SPEC 4.2).
+
+  This vector also carries two INV-043 cases, and the prose for them lives here
+  rather than in expected.yaml, because expected.yaml is byte-normative and a
+  comment in it would be bytes no implementation produces.
+
+  First, `[on, off]`. The input writes it unquoted; the canonical object writes
+  it as `'on'` and `'off'`. Those are YAML 1.1 booleans and YAML 1.2 strings, so
+  an unquoted round trip means whichever reader opens the file decides what the
+  author wrote — and one already did: a script rewriting these expectations
+  turned `[on, off]` into `[true, false]` by trusting one parser. INV-043 quotes
+  anything ambiguous under either version, which removes the question instead of
+  answering it per reader.
+
+  Second, member order. The author wrote `values`, `default`, `origin`,
+  `access`, and the object keeps that order (INV-044). One implementation used
+  to sort every mapping alphabetically, which reordered opaque payloads — data
+  §4 promises to carry untouched — and no conformance runner comparing parsed
+  structure could see it.

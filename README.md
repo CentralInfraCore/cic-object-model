@@ -17,7 +17,7 @@ written into SPEC.md and propagated nowhere else.
 
 | Component | Status |
 |---|---|
-| `SPEC.md` — 42 numbered invariants | written, normative |
+| `SPEC.md` — 44 numbered invariants | written, normative |
 | `conformance/` — 31 vectors | executed against Go on every CI run |
 | `docs/spec-vector-map.md` | 37 invariants vector-covered, 5 declared unvectorizable with a reason each |
 | `tools/check_spec_vectors.py` | runs and passes; negative-tested |
@@ -31,14 +31,14 @@ other: the Rust one was written from `SPEC.md` and the corpus, deliberately not
 from `go/`. Two implementations that share an author's reading share that
 reading's mistakes, and their agreement then proves nothing.
 
-One limit worth stating before you rely on any of the above.
+**§8.8.1 defines the canonical serialization byte for byte**, and §8.8.2 the
+member order. Both runners compare bytes, and the two implementations produce
+**byte-identical objects on all 13 materialization vectors**.
 
-**§8.8 defines no canonical byte encoding** (`docs/spec-defects.md` SD-010), so
-`INV-030`'s determinism is checked structurally rather than byte for byte. Until
-that is written, "the two implementations agree" means they agree on parsed
-structure — which is what the conformance runners compare — and a digest taken
-over a canonical object has no specified input. The Go and Rust emitters make
-different formatting choices today, and neither can be said to be wrong.
+Before that was written they produced **zero** identical objects while agreeing
+on every one semantically, and both were conformant — `INV-030` alone only
+constrains an implementation to agree with itself. A digest taken over a
+canonical object now has a defined input.
 
 ---
 

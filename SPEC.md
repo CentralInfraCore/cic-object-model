@@ -883,9 +883,97 @@ INV-005's forward note (§2.3) becomes a requirement rather than a note.
 
 - **INPUT:** validated node tree
 - **OUTPUT:** canonical CIC object
-- **MUST:** produce a deterministic serialization (INV-030); stamp the model
-  version (§11)
-- **FAILURE:** non-deterministic output → implementation defect
+- **MUST:** produce the serialization of §8.8.1 (INV-043) in the member order of
+  §8.8.2 (INV-044); hand the object over at a known model version (§11)
+- **FAILURE:** output differing from §8.8.1 → implementation defect
+
+Until 0.2 this stage said only "deterministic" (INV-030), which constrains an
+implementation to agree **with itself**. It does not make two implementations
+agree with each other, and they did not: measured across the thirteen
+materialization vectors, the Go and Rust implementations produced **zero
+byte-identical objects** while producing semantically identical ones every time.
+Both were conformant. The specification could not say which was right because it
+had not said anything.
+
+That is not a tidiness problem. `INV-030` promises a byte-identical object;
+evidence that references an object references its bytes; and a digest taken over
+a canonical object has no defined input until this section exists.
+
+#### 8.8.1 The serialization
+
+**INV-043** — A canonical CIC object MUST be serialized exactly as follows.
+
+- **Encoding** UTF-8, no byte-order mark. Lines end with a single `\n`,
+  including the last.
+- **Document** Begins with `---\n`. One document per object; no `...`
+  terminator.
+- **Structure** Block style throughout, except where stated below. Each nesting
+  level indents by exactly two spaces.
+- **Node members** `values:` on its own line when the payload is a collection,
+  or `values: <scalar>` when it is a scalar. `origin:` always inline (below).
+  Primitive members follow, each `<name>:` on its own line.
+- **`origin`** Flow style, on one line: `[yaml]`, `[schema]`,
+  `[{sealed: {template: T, path: P}}]`, `[{sealed: {template: T, path: P}}, schema]`.
+  The grammar is four short productions and a block form spreads them over up to
+  six lines each, which makes the one thing a reader most often checks the
+  hardest thing to see.
+- **Sequences** Each entry begins `- ` with its first member on that same line;
+  the entry's remaining members align under it. An empty sequence is `[]`, an
+  empty mapping is `{}` — block style has no way to write "nothing here".
+- **Scalars** Plain where plain is unambiguous, single-quoted otherwise, with an
+  embedded `'` doubled. Quoting is REQUIRED when the text:
+  - is empty;
+  - would be read as a **number** under either YAML version — decimal, a
+    leading `+`/`-`, a decimal point or exponent, hexadecimal (`0x…`), octal
+    (`0o…` or a leading `0` before digits), digit groups separated by `_`,
+    `.inf`/`.nan` in any case, or sexagesimal (`1:30`);
+  - would be read as a **boolean or null** under either YAML version, which
+    includes `yes`, `no`, `on`, `off`, `~` and every case variant;
+  - begins with a space or an indicator character, or ends with a space;
+  - contains `: `, ` #`, or a line break.
+
+  Everything else is written plain, including a `'` inside the text — a plain
+  scalar may contain one, and quoting on sight would make the rule harder to
+  reproduce rather than safer.
+- **Numbers** An integer is written without a decimal point. A float always
+  carries a `.` or an exponent, so that it does not read back as an integer.
+
+The `on`/`off` rule is not hypothetical: an opaque payload in this corpus holds
+the list `[on, off]`, and a script rewriting expectations round-tripped it to
+`[true, false]` by trusting one parser's reading. Quoting removes the question
+rather than answering it per reader.
+
+#### 8.8.2 Member order
+
+**INV-044** — Members are serialized in this order, and no other:
+
+1. `values`
+2. `origin`
+3. the primitives the node carries, in the order §6.1 states them —
+   `shape`, `role`, `behavior`, `contract`, `address`, `identity`, `event`,
+   `access`
+
+Within a payload, children are serialized **in the order they were established**:
+for a schema-derived payload the order the schema declares them, and for an
+opaque payload the order the author wrote them.
+
+The second half is a consequence of §4 rather than a preference. An opaque
+payload is carried verbatim and nothing below it is interpreted, so reordering
+it is a transformation of data this model promised not to touch. One
+implementation sorted every mapping alphabetically, including opaque payloads,
+and the corpus could not see it because a conformance runner comparing parsed
+structure cannot compare order at all.
+
+Having settled that, sorting the interpreted payloads alphabetically while
+carrying opaque ones verbatim would leave the model with two ordering rules and
+a reader with a question at every level about which one applies. Declaration
+order is one rule.
+
+One position is fixed rather than declared: an `access` operation block is
+serialized `rules`, `inherit`, `default_injection`. `inherit` is injected when
+the schema does not state it (§6.4), and the injected member sits between a
+declared `rules` and a declared `default_injection` — a position no rule about
+declaration order can produce, because the member was never declared.
 
 ---
 
@@ -1037,6 +1125,8 @@ rule was actually protecting.
 | INV-040 | Every node has exactly one address | 2.5 |
 | INV-041 | A mapping declares no key twice | 2.6 |
 | INV-042 | No YAML anchors or aliases | 2.6 |
+| INV-043 | The canonical serialization, byte for byte | 8.8.1 |
+| INV-044 | Canonical member order | 8.8.2 |
 
 ---
 

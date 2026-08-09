@@ -104,7 +104,7 @@ func Materialize(schemaYAML, inputYAML []byte) (CanonicalObject, error) {
 		return nil, err
 	}
 	// §8.8
-	out, err := encodeCanonical(doc)
+	out, err := emitCanonical(doc), error(nil)
 	if err != nil {
 		return nil, err
 	}

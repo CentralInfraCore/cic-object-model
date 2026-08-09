@@ -5,12 +5,16 @@
 //! reads. Where the two implementations disagree, the disagreement is the
 //! specification's, not the language's.
 //!
-//! Expectations are compared as parsed structure, not as bytes. SPEC §8.8
-//! defines no canonical serialization (`docs/spec-defects.md` SD-010, audit
-//! finding F-13), so requiring identical bytes would be inventing a rule the
-//! specification does not have — and inventing it separately in two
-//! implementations would make them disagree for a reason neither is wrong
-//! about.
+//! Expectations are compared BYTE for byte, because §8.8.1 (INV-043) now says
+//! what the bytes are.
+//!
+//! This used to compare parsed structure, on the reasoning that §8.8 defined no
+//! serialization so requiring identical bytes would be inventing a rule. The
+//! cost of that reasoning was measured: across the thirteen materialization
+//! vectors the Go and Rust implementations produced ZERO byte-identical objects
+//! while agreeing on every one semantically. A structural comparison cannot see
+//! member order at all, so one implementation reordering opaque payloads — data
+//! §4 promises to carry untouched — passed without comment.
 
 use cic_object_model::error::Stage;
 use cic_object_model::value::{self, Value};
@@ -93,14 +97,22 @@ fn materialization() {
         let obj = materialize(&read(&dir, "schema.yaml"), &read(&dir, "input.yaml"))
             .unwrap_or_else(|e| panic!("{name}: materialization failed: {e}"));
 
-        let got = parse(obj.canonical_yaml(), "the produced object");
-        let want = parse(&read(&dir, "expected.yaml"), "expected.yaml");
+        let want = read(&dir, "expected.yaml");
         assert_eq!(
-            got,
-            want,
-            "{name}: the canonical object is not what the vector expects\n--- got ---\n{}\n--- want ---\n{}",
+            obj.canonical_yaml(),
+            want.as_slice(),
+            "{name}: the canonical object does not match expected.yaml byte for byte\n--- got ---\n{}\n--- want ---\n{}",
             String::from_utf8_lossy(obj.canonical_yaml()),
-            String::from_utf8_lossy(&read(&dir, "expected.yaml"))
+            String::from_utf8_lossy(&want)
+        );
+
+        // INV-030 — the same schema and input produce a byte-identical object.
+        let again = materialize(&read(&dir, "schema.yaml"), &read(&dir, "input.yaml"))
+            .unwrap_or_else(|e| panic!("{name}: second materialization failed: {e}"));
+        assert_eq!(
+            obj.canonical_yaml(),
+            again.canonical_yaml(),
+            "{name}: materialization is not deterministic"
         );
 
         // INV-033 — the version travels with the hand-off, never inside the

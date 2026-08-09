@@ -27,7 +27,7 @@ being evidence, and the reasoning is what makes the fix reviewable.
 | | Count | Which |
 |---|---|---|
 | **Fixed in 0.2** | 9 | SD-003, SD-004, SD-005, SD-009, SD-012, SD-013, SD-014, SD-017, SD-018 |
-| **Open** | 10 | SD-001, SD-002, SD-006, SD-007, SD-008, SD-010, SD-011, SD-015, SD-016, **SD-019** |
+| **Open** | 9 | SD-001, SD-002, SD-006, SD-007, SD-008, SD-011, SD-015, SD-016, **SD-019** |
 
 SD-019 arrived after 0.2 shipped, from attacking INV-032 rather than asserting
 it. The implementation compensates; the specification's claim is still false.
@@ -397,8 +397,24 @@ carries the mount path — not its own sub-path — in its origin's `sealed` ter
 | | |
 |---|---|
 | **Where** | `SPEC.md` §8 (INV-030), §8.8, §10 |
-| **Severity** | **underspecified** |
-| **Anchor** | `go/objectmodel/yamlutil.go`, `canonical.go` |
+| **Severity** | **underspecified** — **FIXED in 0.2 by §8.8.1 / §8.8.2** |
+| **Anchor** | `go/objectmodel/emit.go`, `rust/src/canonical.rs` |
+
+**Resolved.** §8.8.1 (INV-043) defines the serialization byte for byte and
+§8.8.2 (INV-044) defines the member order. Both implementations emit it from a
+hand-written serializer rather than a library's encoder, and both conformance
+runners compare bytes.
+
+The prediction below was exactly right and was measured before the fix: **zero
+of thirteen** materialization vectors matched between Go and Rust, while all
+thirteen agreed semantically. Two of the differences were not formatting — Go
+sorted every mapping alphabetically, which reordered opaque payloads, data §4
+promises to carry untouched, and no structural comparison could see it.
+
+After: **13/13 byte-identical between the two implementations**, and each
+matches `expected.yaml` byte for byte.
+
+The original entry follows.
 
 INV-030: *"the same schema and input MUST produce a byte-identical canonical
 object."* §8.8: *"MUST produce a deterministic serialization."* §10: output must
