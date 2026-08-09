@@ -60,63 +60,123 @@ var ErrModelVersion = errors.New("module: undeclared object model version")
 // object this package can trust, because the pipeline is the only thing that
 // produces one.
 func Execute(obj objectmodel.CanonicalObject) (err error) {
+	delivered, err := Accept(obj)
+	if err != nil {
+		return err
+	}
+	// A real module would act here, and it acts on `delivered` — never on
+	// `obj`. What matters for the spec is what it can no longer be handed:
+	// INV-031(a)-(g) are all eliminated upstream, and boundary_test.go asserts
+	// that clause by clause.
+	_ = delivered
+	return nil
+}
+
+// Delivered is what a module works from: an immutable snapshot taken at the
+// boundary, with no way back to the value that crossed it.
+//
+// This type exists because of a time-of-check/time-of-use hole an external
+// audit demonstrated. Execute used to call the interface five times — the
+// version twice, the bytes twice — so a forgery that simply COUNTS its calls
+// could return honest answers to the checks and something else to the module
+// afterwards. Measured on the previous implementation: Execute returned nil
+// after exactly two reads of CanonicalYAML, and the third read returned the
+// attacker's bytes.
+//
+// Re-validating more often does not fix that; it only moves the count. The
+// mitigation has to be that nothing downstream can ask again, which means the
+// module never holds the interface. It holds this.
+type Delivered struct {
+	modelVersion string
+	yaml         []byte
+	root         *objectmodel.Node
+}
+
+// ModelVersion is the version this object was delivered at.
+func (d *Delivered) ModelVersion() string { return d.modelVersion }
+
+// CanonicalYAML is the validated serialization, copied.
+func (d *Delivered) CanonicalYAML() []byte {
+	out := make([]byte, len(d.yaml))
+	copy(out, d.yaml)
+	return out
+}
+
+// Root is the node tree the bytes above were checked against.
+func (d *Delivered) Root() *objectmodel.Node { return d.root }
+
+// accept is the boundary: it reads each method of the incoming value EXACTLY
+// ONCE, checks the snapshot, and returns it.
+//
+// The call counts are the contract, and boundary_test.go asserts them. A second
+// read of anything here would reopen the hole this function was written to
+// close, however well-intentioned the reason for it.
+// Accept is the boundary, exported so a host can take delivery without also
+// running a module. Execute is Accept plus the module body.
+func Accept(obj objectmodel.CanonicalObject) (d *Delivered, err error) {
 	// A trust boundary must not be crashable by what crosses it. An embedded
 	// forgery with a nil inner interface satisfies the type and panics on the
 	// first method call; a panic reachable from a module author is a denial of
 	// service, and worse than a rejection. Turn it into one.
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("%w: the object's methods are not callable (%v)",
+			d, err = nil, fmt.Errorf("%w: the object's methods are not callable (%v)",
 				ErrNilObject, r)
 		}
 	}()
 
 	if obj == nil {
-		return ErrNilObject
+		return nil, ErrNilObject
 	}
-	if obj.ModelVersion() != ModelVersion {
-		return fmt.Errorf("%w: got %q, this module consumes %q",
-			ErrModelVersion, obj.ModelVersion(), ModelVersion)
+
+	// One read each, and the checks interleaved rather than hoisted.
+	//
+	// Reading all three up front would also give the single-read property, and
+	// it costs something: a value that implements only ModelVersion — which is
+	// what a host holding a foreign-version object looks like — would panic on
+	// the next method and be reported as uncallable instead of as the wrong
+	// version. Reading in the order the checks need keeps both.
+	version := obj.ModelVersion()
+	if version != ModelVersion {
+		return nil, fmt.Errorf("%w: got %q, this module consumes %q",
+			ErrModelVersion, version, ModelVersion)
 	}
+
 	root := obj.Root()
 	if root == nil {
-		return ErrNilObject
+		return nil, ErrNilObject
 	}
-	// Defence in depth, added after adversarial_test.go got a forged object
-	// across this boundary.
+
+	yaml := obj.CanonicalYAML()
+
+	// The bytes must be a valid canonical object.
 	//
-	// The comment on ErrNilObject above claims the unexported method makes this
-	// type unconstructible elsewhere. That claim is FALSE in Go: another
-	// package can embed the interface in a struct, which promotes the
-	// unexported method and satisfies the type. Pair that with a real node tree
-	// taken from a legitimate materialization, and every check above passes
-	// while CanonicalYAML returns whatever the forger chose. Recorded as
-	// docs/spec-defects.md SD-019.
+	// The unexported marker method on the interface does NOT make the type
+	// unconstructible elsewhere: another package can embed the interface in a
+	// struct, which promotes the marker and satisfies the type. That is a
+	// property of the language, not of this code (docs/spec-defects.md SD-019).
+	// What can be restored is the guarantee that actually matters — that what a
+	// module reads has been validated — and one parse per delivery buys it.
 	//
-	// The type-level guarantee cannot be restored — it is a property of the
-	// language, not of this code. What can be restored is the guarantee that
-	// actually matters: what a module READS has been validated. One parse per
-	// delivery buys that back.
-	if err := objectmodel.ValidateCanonicalDocument(obj.CanonicalYAML()); err != nil {
-		return fmt.Errorf("%w: %v", ErrUnvalidatedObject, err)
+	// The snapshot is copied first, so a slice the caller still holds cannot be
+	// rewritten between this check and the module's use of it.
+	snapshot := make([]byte, len(yaml))
+	copy(snapshot, yaml)
+	if err := objectmodel.ValidateCanonicalDocument(snapshot); err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrUnvalidatedObject, err)
 	}
+
 	// And the two views must describe the SAME object.
 	//
-	// Validating the bytes says they are a well-formed canonical object. It
-	// does not say they are THIS object's. A forger pairing a real node tree,
-	// taken from a legitimate materialization, with a different but perfectly
-	// valid byte string passes every check above: the tree is real, the bytes
-	// validate, and a consumer reading the tree and one reading the bytes are
-	// told different things by the same value. That was audit finding F-02, and
-	// nothing here could close it while the serialization was undefined —
-	// re-serializing the tree and comparing would have failed on formatting
-	// alone. §8.8.1 made the bytes a function of the tree, which is what makes
-	// this check possible rather than merely desirable.
-	if !bytes.Equal(objectmodel.Canonicalize(root), obj.CanonicalYAML()) {
-		return ErrObjectNotBound
+	// Validating the bytes says they are a well-formed canonical object; it does
+	// not say they are THIS object's. A forgery pairing a real node tree with a
+	// different but perfectly valid byte string passes everything above. That
+	// was audit finding F-02, and it could not be closed while §8.8 defined no
+	// serialization: re-serializing the tree and comparing would have failed on
+	// formatting alone. §8.8.1 made the bytes a function of the tree.
+	if !bytes.Equal(objectmodel.Canonicalize(root), snapshot) {
+		return nil, ErrObjectNotBound
 	}
-	// A real module would act here. What matters for the spec is what it can
-	// no longer be handed: INV-031(a)-(g) are all eliminated upstream, and
-	// boundary_test.go asserts that clause by clause.
-	return nil
+
+	return &Delivered{modelVersion: version, yaml: snapshot, root: root}, nil
 }

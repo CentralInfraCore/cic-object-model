@@ -766,7 +766,7 @@ vectors across releases either.
 
 ## SD-019 — INV-032's type-level guarantee is defeatable by interface embedding
 
-**Still open, and narrowed.** The type-level guarantee cannot be restored in Go;
+**Still open, narrowed twice.** The type-level guarantee cannot be restored in Go;
 it is a property of the language. What has changed is what an embedded forgery
 can accomplish with it.
 
@@ -783,6 +783,20 @@ After: the boundary re-serializes the tree and compares
 This was not possible before §8.8.1: with the serialization undefined, a
 re-serialization differing from the original was nobody's fault, and the check
 would have rejected every honest object.
+
+**Second narrowing (audit adversarial F-07).** Binding the tree to the bytes was
+not enough while the boundary asked more than once. `Execute` read the interface
+five times — the version twice, the bytes twice — so a forgery that merely
+COUNTS its calls answered honestly through the checks and differently
+afterwards. Measured: `Execute` returned nil after exactly two reads of
+`CanonicalYAML`, and the third read returned the attacker's bytes. Re-validating
+more often does not fix that; it moves the count.
+
+The boundary now reads each method exactly once and returns a `Delivered`
+snapshot, and a module never holds the incoming value. A count of one cannot be
+beaten by a stateful value: there is no later call to answer differently. The
+count itself is asserted, so a future check that reads again fails the test
+rather than quietly reopening the hole.
 
 What remains is an object assembled elsewhere whose tree and bytes are mutually
 consistent and which never went through materialization. Every check the
