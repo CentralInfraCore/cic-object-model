@@ -1,0 +1,9 @@
+---
+model: "0.2"
+root:
+  shape: object
+  children:
+    secret:
+      shape: scalar
+      scalar_type: string
+      required: true

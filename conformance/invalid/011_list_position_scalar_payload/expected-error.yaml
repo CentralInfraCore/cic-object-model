@@ -1,0 +1,8 @@
+---
+error:
+  code: E_TYPE_MISMATCH
+  invariant: INV-008
+  stage: entry-validation
+  path: $.values.groups
+  detail: >-
+    a list position requires a sequence payload

@@ -1,0 +1,10 @@
+---
+model: "0.2"
+root:
+  shape: object
+  children:
+    groups:
+      shape: list
+      item:
+        shape: scalar
+        scalar_type: string

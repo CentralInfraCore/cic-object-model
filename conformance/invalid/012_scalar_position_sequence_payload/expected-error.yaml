@@ -1,0 +1,8 @@
+---
+error:
+  code: E_TYPE_MISMATCH
+  invariant: INV-008
+  stage: entry-validation
+  path: $.values.name
+  detail: >-
+    a scalar position requires a scalar payload, not a sequence

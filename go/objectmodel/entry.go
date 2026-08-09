@@ -124,6 +124,25 @@ func entryPayload(sch *schemaNode, v any, path string) error {
 	case shapeOpaque:
 		return nil
 	case shapeScalar:
+		// A scalar position takes a scalar. Accepting a collection here
+		// produced a canonical object whose own `shape` primitive said
+		// `scalar` while its payload was a sequence — an object that
+		// contradicts itself, emitted by the only thing allowed to make one.
+		//
+		// This checks ARITY, not the declared `scalar_type`. Whether
+		// `scalar_type: integer` constrains a value is a question the
+		// specification does not answer (docs/spec-defects.md, audit semantic
+		// F-04); whether a scalar position holds a scalar is not in doubt.
+		switch v.(type) {
+		case []any:
+			return newError(CodeTypeMismatch, "INV-008", StageEntryValidation, path,
+				"a scalar position requires a scalar payload, not a sequence")
+		default:
+			if _, isMap := asMap(v); isMap {
+				return newError(CodeTypeMismatch, "INV-008", StageEntryValidation, path,
+					"a scalar position requires a scalar payload, not a mapping")
+			}
+		}
 		return nil
 	case shapeList:
 		l, ok := v.([]any)

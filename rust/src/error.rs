@@ -19,6 +19,7 @@ use std::fmt;
 pub enum Stage {
     SchemaLoad,
     EntryValidation,
+    DefaultMaterialization,
     PrimitiveEvaluation,
     FinalValidation,
 }
@@ -29,6 +30,7 @@ impl Stage {
         match self {
             Stage::SchemaLoad => "schema-load",
             Stage::EntryValidation => "entry-validation",
+            Stage::DefaultMaterialization => "default-materialization",
             Stage::PrimitiveEvaluation => "primitive-evaluation",
             Stage::FinalValidation => "final-validation",
         }
@@ -63,6 +65,7 @@ pub mod code {
     pub const SCHEMA_SHAPE_MISSING: &str = "E_SCHEMA_SHAPE_MISSING";
     pub const TEMPLATE_NOT_FOUND: &str = "E_TEMPLATE_NOT_FOUND";
     pub const TYPE_MISMATCH: &str = "E_TYPE_MISMATCH";
+    pub const REQUIRED_VALUE_MISSING: &str = "E_REQUIRED_VALUE_MISSING";
     pub const MISSING_VALUES: &str = "E_MISSING_VALUES";
     pub const MISSING_ORIGIN: &str = "E_MISSING_ORIGIN";
     pub const UNSUPPORTED_MODEL_VERSION: &str = "E_UNSUPPORTED_MODEL_VERSION";
