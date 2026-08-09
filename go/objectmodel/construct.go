@@ -31,7 +31,7 @@ func construct(eff *effNode, authored any, authoredOK bool, content any, content
 		n.authoredPrims = map[string]any{}
 		n.extraMembers = map[string]any{}
 		payload, payloadOK = nil, false
-		for _, k := range sortedKeys(m) {
+		for _, k := range keysInOrder(authored) {
 			switch {
 			case k == "values":
 				payload, payloadOK = m[k], true

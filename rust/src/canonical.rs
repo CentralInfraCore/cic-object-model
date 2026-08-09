@@ -1,21 +1,18 @@
 //! Canonical serialization (SPEC §8.8).
 //!
-//! The emitter is written here rather than delegated to the YAML library, for
-//! one reason worth stating plainly: **§8.8 does not define a canonical byte
-//! encoding** (`docs/spec-defects.md` SD-010, audit finding F-13). INV-030
-//! promises determinism, but nothing says what indentation, quoting or
-//! sequence style a canonical object has.
+//! §8.8.1 defines this byte for byte and §8.8.2 defines the member order, so
+//! this file implements a specification rather than making choices. It is
+//! written by hand rather than delegated to a YAML library for that reason: a
+//! library emits its own house style, and the house style is what made the two
+//! implementations of this document produce zero byte-identical objects across
+//! thirteen vectors while agreeing on every one of them semantically.
 //!
-//! So this emitter is deterministic — the same object always produces the same
-//! bytes — without being canonical in any sense the specification licenses.
-//! Whether it agrees byte-for-byte with the Go implementation is not something
-//! either of us can be right or wrong about yet, which is why the conformance
-//! runner compares parsed structure. Writing the emitter by hand rather than
-//! taking a library's defaults at least means the choices are visible and in
-//! one place, ready to be pinned when §8.8 says something.
-//!
-//! Member order IS specified and is enforced here: `values`, `origin`, then
-//! the primitives in the §6.1 order.
+//! The rules, in the order §8.8.1 states them: UTF-8, no BOM, `\n` line
+//! endings including the last; a leading `---`; block style at two spaces per
+//! level; `origin` inline; sequence entries opening `- ` with their first
+//! member on the same line; `{}` and `[]` for empty collections; single quotes
+//! wherever plain would be ambiguous under YAML 1.1 OR 1.2; floats that keep a
+//! marker.
 
 use crate::node::{Node, Payload};
 use crate::origin::Origin;
@@ -84,8 +81,17 @@ fn write_payload(out: &mut String, payload: &Payload, depth: usize) {
             out.push('\n');
             for item in items {
                 indent(out, depth + 1);
-                out.push_str("-\n");
+                // §8.8.1: the entry opens `- ` with its FIRST member on the
+                // same line, and the rest align under it. write_node_members
+                // indents every line it writes, so the dash replaces the two
+                // spaces the first line would have started with.
+                out.push_str("- ");
+                let start = out.len();
                 write_node_members(out, item, depth + 2);
+                let first_line_indent = "  ".repeat(depth + 2);
+                if out[start..].starts_with(&first_line_indent) {
+                    out.replace_range(start..start + first_line_indent.len(), "");
+                }
             }
         }
     }
@@ -190,8 +196,7 @@ fn quote_if_needed(s: &str) -> String {
 
     let needs_quotes = s.is_empty()
         || RESERVED.contains(&s)
-        || s.parse::<i64>().is_ok()
-        || s.parse::<f64>().is_ok()
+        || looks_numeric(s)
         || s.starts_with([
             ' ', '-', '?', ':', ',', '[', ']', '{', '}', '#', '&', '*', '!', '|', '>', '\'', '"',
             '%', '@', '`',
@@ -199,11 +204,61 @@ fn quote_if_needed(s: &str) -> String {
         || s.ends_with(' ')
         || s.contains(": ")
         || s.contains(" #")
-        || s.contains('\n');
+        || s.contains('\n')
+        || s.contains('\r');
 
     if needs_quotes {
         format!("'{}'", s.replace('\'', "''"))
     } else {
         s.to_string()
     }
+}
+
+/// Whether a reader could take this text for a number under EITHER YAML
+/// version, which is a wider set than Rust's own parsers accept.
+///
+/// `0x10` is the case that made this its own function: it is the string "0x10"
+/// to `str::parse::<i64>` and the integer 16 to a YAML 1.1 reader, so a check
+/// built from `parse` alone let it through. Octal, underscore digit groups and
+/// sexagesimal are the same shape of mistake. The Go implementation carries the
+/// same list, because §8.8.1 is one rule and two readings of it would put the
+/// two emitters back where they started.
+fn looks_numeric(s: &str) -> bool {
+    let t = s.strip_prefix(['-', '+']).unwrap_or(s);
+    if t.is_empty() {
+        return false;
+    }
+    if matches!(t.to_ascii_lowercase().as_str(), ".inf" | ".nan") {
+        return true;
+    }
+
+    let stripped = t.replace('_', "");
+    let (digits, radix) = match stripped.get(..2).map(str::to_ascii_lowercase).as_deref() {
+        Some("0x") => (&stripped[2..], 16),
+        Some("0o") => (&stripped[2..], 8),
+        Some("0b") => (&stripped[2..], 2),
+        _ => (stripped.as_str(), 10),
+    };
+    if !digits.is_empty() && i64::from_str_radix(digits, radix).is_ok() {
+        return true;
+    }
+    // A leading zero before digits is octal to a YAML 1.1 reader.
+    if stripped.len() > 1
+        && stripped.starts_with('0')
+        && stripped[1..].bytes().all(|b| b.is_ascii_digit())
+    {
+        return true;
+    }
+    if stripped.parse::<f64>().is_ok() {
+        return true;
+    }
+    // Sexagesimal: digit groups separated by colons, read as seconds.
+    if stripped.contains(':')
+        && stripped
+            .split(':')
+            .all(|p| !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit()))
+    {
+        return true;
+    }
+    false
 }

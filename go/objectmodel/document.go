@@ -43,14 +43,45 @@ func parseDocument(data []byte, invariant string, stage Stage, what string) (any
 		return nil, err
 	}
 
-	var out any
-	if doc.Kind != 0 {
-		if err := doc.Decode(&out); err != nil {
-			return nil, fail(CodeMalformedDocument, invariant,
-				fmt.Sprintf("%s is not valid YAML: %v", what, err))
-		}
+	if doc.Kind == 0 {
+		return nil, nil
 	}
-	return out, nil
+	// Built from the node tree rather than decoded into `any`, because
+	// decoding a mapping into map[string]any loses the order the author wrote
+	// — and INV-044 says an opaque payload keeps it. Go used to sort every
+	// mapping instead, which reordered data §4 promises to carry untouched,
+	// and no conformance runner comparing parsed structure could see it.
+	return fromNode(&doc), nil
+}
+
+// fromNode converts a decoded YAML node tree into the ordered form the rest of
+// this package works on.
+func fromNode(n *yaml.Node) any {
+	switch n.Kind {
+	case yaml.DocumentNode:
+		if len(n.Content) == 0 {
+			return nil
+		}
+		return fromNode(n.Content[0])
+	case yaml.MappingNode:
+		m := newOrderedMap()
+		for i := 0; i+1 < len(n.Content); i += 2 {
+			m.set(n.Content[i].Value, fromNode(n.Content[i+1]))
+		}
+		return m
+	case yaml.SequenceNode:
+		out := make([]any, 0, len(n.Content))
+		for _, c := range n.Content {
+			out = append(out, fromNode(c))
+		}
+		return out
+	default:
+		var v any
+		if err := n.Decode(&v); err != nil {
+			return n.Value
+		}
+		return v
+	}
 }
 
 // checkNode walks the node tree for INV-041 and INV-042.

@@ -139,14 +139,14 @@ func LoadSchema(data []byte) (*Schema, error) {
 			return nil, newError(CodeMalformedDocument, "INV-015", StageSchemaLoad, "$templates",
 				"templates must be a mapping")
 		}
-		for _, name := range sortedKeys(tm) {
+		for _, name := range keysInOrder(tRaw) {
 			pm, ok := asMap(tm[name])
 			if !ok {
 				return nil, newError(CodeMalformedDocument, "INV-015", StageSchemaLoad,
 					"$templates."+name, "a template must be a mapping of path to node")
 			}
 			s.templates[name] = map[string]*templateEntry{}
-			for _, p := range sortedKeys(pm) {
+			for _, p := range keysInOrder(tm[name]) {
 				entryPath := "$templates." + name + "." + p
 				node, err := parseSchemaNode(pm[p], entryPath)
 				if err != nil {
@@ -179,7 +179,7 @@ func parseSchemaNode(raw any, path string) (*schemaNode, error) {
 		children: map[string]*schemaNode{},
 		prims:    map[string]any{},
 	}
-	for _, k := range sortedKeys(m) {
+	for _, k := range keysInOrder(raw) {
 		v := m[k]
 		switch {
 		case k == "shape":
@@ -199,7 +199,7 @@ func parseSchemaNode(raw any, path string) (*schemaNode, error) {
 				return nil, newError(CodeMalformedDocument, "INV-013", StageSchemaLoad,
 					path+".children", "children must be a mapping")
 			}
-			for _, cn := range sortedKeys(cm) {
+			for _, cn := range keysInOrder(v) {
 				child, err := parseSchemaNode(cm[cn], path+".values."+cn)
 				if err != nil {
 					return nil, err
