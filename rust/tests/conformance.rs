@@ -29,7 +29,7 @@ const CORPUS: &str = "../conformance";
 // things the serialization can do to an address before the model sees the
 // document. Both exist because the two implementations DISAGREED on real input
 // and the corpus could not see it.
-const EXPECTED: [(&str, usize); 3] = [("materialization", 14), ("invalid", 12), ("validation", 11)];
+const EXPECTED: [(&str, usize); 3] = [("materialization", 15), ("invalid", 12), ("validation", 11)];
 
 fn vectors(group: &str) -> Vec<PathBuf> {
     let dir = Path::new(CORPUS).join(group);

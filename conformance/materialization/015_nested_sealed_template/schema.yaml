@@ -1,0 +1,20 @@
+---
+model: "0.2"
+templates:
+  $inner:
+    $.leaf:
+      shape: scalar
+      scalar_type: string
+      default: from-inner
+  $outer:
+    $.mid:
+      sealed_from:
+        template: $inner
+        path: $.leaf
+root:
+  shape: object
+  children:
+    a:
+      sealed_from:
+        template: $outer
+        path: $.mid

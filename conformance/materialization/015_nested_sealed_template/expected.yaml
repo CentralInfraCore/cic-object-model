@@ -1,0 +1,21 @@
+---
+values:
+  a:
+    values: from-inner
+    origin: [{sealed: {template: $inner, path: $.leaf}}, schema]
+    shape:
+      values:
+        type:
+          values: scalar
+          origin: [schema]
+        scalar_type:
+          values: string
+          origin: [schema]
+      origin: [schema]
+origin: [yaml]
+shape:
+  values:
+    type:
+      values: object
+      origin: [schema]
+  origin: [schema]

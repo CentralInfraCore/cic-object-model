@@ -184,7 +184,28 @@ impl<'a> Ctx<'a> {
         Ok(node)
     }
 
-    /// Resolve a `sealed_from` to the template entry it names.
+    /// Resolve a `sealed_from` chain to the entry it ultimately names.
+    ///
+    /// A template entry may itself be sealed from another template, and this
+    /// used to resolve exactly ONE level: the entry was returned as the
+    /// effective schema, and since a `sealed_from` node declares no shape of
+    /// its own the node defaulted to `object` and materialized as `{}`.
+    ///
+    /// Measured against the Go implementation on a two-level chain:
+    ///
+    ///   go:   values: from-inner
+    ///         origin: [{sealed: {template: $inner, path: $.leaf}}, schema]
+    ///   rust: values: {}
+    ///         origin: [{sealed: {template: $outer, path: $.mid}}]
+    ///
+    /// Two different objects from one schema, and the corpus had no nested
+    /// template, so neither runner could see it. Note what the expansion also
+    /// settles: the origin names the INNERMOST template and path, not the
+    /// mount point — the place the value actually came from.
+    ///
+    /// The depth bound matches Go's. It is not decoration: without it a chain
+    /// of templates referring to each other is an unbounded loop over input a
+    /// caller supplies.
     fn resolve_sealed<'s>(
         &self,
         sn: &'s SchemaNode,
@@ -193,26 +214,42 @@ impl<'a> Ctx<'a> {
     where
         'a: 's,
     {
-        let Some(ref r) = sn.sealed_from else {
-            return Ok((sn, None, None));
-        };
-        let Some(entry) = self.schema.template_entry(&r.template, &r.path) else {
-            return Err(Error::new(
-                code::TEMPLATE_NOT_FOUND,
-                "INV-015",
-                Stage::SchemaLoad,
-                path,
-                format!("no template `{}` declares `{}`", r.template, r.path),
-            ));
-        };
-        Ok((
-            entry,
-            Some(Sealed {
+        const MAX_TEMPLATE_DEPTH: usize = 64;
+
+        let mut node = sn;
+        let mut sealed = None;
+        let mut content = None;
+
+        for depth in 0..=MAX_TEMPLATE_DEPTH {
+            let Some(ref r) = node.sealed_from else {
+                return Ok((node, sealed, content));
+            };
+            if depth == MAX_TEMPLATE_DEPTH {
+                return Err(Error::new(
+                    code::TEMPLATE_NOT_FOUND,
+                    "INV-005",
+                    Stage::SchemaLoad,
+                    path,
+                    "template expansion exceeded the maximum depth",
+                ));
+            }
+            let Some(entry) = self.schema.template_entry(&r.template, &r.path) else {
+                return Err(Error::new(
+                    code::TEMPLATE_NOT_FOUND,
+                    "INV-015",
+                    Stage::SchemaLoad,
+                    path,
+                    format!("no template `{}` declares `{}`", r.template, r.path),
+                ));
+            };
+            sealed = Some(Sealed {
                 template: r.template.clone(),
                 path: r.path.clone(),
-            }),
-            entry.content.as_ref(),
-        ))
+            });
+            content = entry.content.as_ref();
+            node = entry;
+        }
+        unreachable!("the loop returns or errors on every iteration")
     }
 
     /// A declared position takes a payload of its own arity (INV-008).

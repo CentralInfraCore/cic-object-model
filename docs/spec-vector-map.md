@@ -34,7 +34,7 @@ for months and "nothing else is" never was.
 | INV-012 | No `default` member on a canonical node | 4.5 | `validation/005_default_member` |
 | INV-013 | Origin grammar — exactly four forms | 5.2 | `materialization/001_origin_yaml` <br> `materialization/002_origin_schema` <br> `materialization/003_origin_sealed` <br> `materialization/004_origin_sealed_schema` <br> `materialization/009_normalize_map` <br> `materialization/010_normalize_empty_object` <br> `validation/001_origin_yaml_schema_conflict` <br> `validation/007_origin_duplicate_term` <br> `validation/008_origin_terms_out_of_order` <br> `validation/009_origin_sealed_schema_repeated` |
 | INV-014 | Origin is classification, not history | 5.2 | `invalid/005_origin_in_authoring_input` |
-| INV-015 | `sealed` MUST carry `template` and `path` | 5.2 | `invalid/007_sealed_missing_path` <br> `materialization/003_origin_sealed` <br> `materialization/004_origin_sealed_schema` |
+| INV-015 | `sealed` MUST carry `template` and `path` | 5.2 | `invalid/007_sealed_missing_path` <br> `materialization/003_origin_sealed` <br> `materialization/004_origin_sealed_schema` <br> `materialization/015_nested_sealed_template` |
 | INV-016 | `sealed` + `yaml` → invalid | 5.3 | `invalid/001_sealed_yaml_conflict` <br> `invalid/002_sealed_yaml_schema_conflict` |
 | INV-017 | `yaml` + `schema` → invalid | 5.3 | `validation/001_origin_yaml_schema_conflict` |
 | INV-018 | Empty origin → invalid | 5.3 | `validation/002_origin_empty` |
