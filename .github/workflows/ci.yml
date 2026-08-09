@@ -1,20 +1,22 @@
 ---
 name: CI
 
-# Pre-PR feedback on work branches. This list is a convenience, not the gate —
-# it depends on branch naming, and a namespace nobody thought to register here
-# silently gets nothing (that is how `verify/**` went uncovered).
+# Pre-PR feedback on work branches — every branch, with no list.
+#
+# There used to be a list here, with a comment admitting it "depends on branch
+# naming, and a namespace nobody thought to register here silently gets nothing
+# (that is how `verify/**` went uncovered)". It happened again: `spec/**` was
+# not on it, and two branches' worth of commits got no push run at all. The
+# comment described the failure mode exactly and the list stayed, which is what
+# a known-and-tolerated gap does.
+#
+# `'**'` costs a run per branch push on a public repository, where CI is free,
+# and removes the class rather than the instance. The PR trigger below is still
+# the gate; this is the feedback that arrives before one exists.
 on:
   push:
     branches:
-      - main
-      - devel
-      - feat/**
-      - feature/**
-      - fix/**
-      - chore/**
-      - docs/**
-      - verify/**
+      - '**'
   # The actual gate: nothing reaches an integration branch through a PR without
   # a run, regardless of what the source branch is called. `devel` is listed for
   # exactly the case that got through — a `verify/**` -> `devel` PR matched
@@ -72,6 +74,17 @@ jobs:
       # The gate. One command, the same one a developer runs.
       - name: make ci
         run: make ci
+
+      # INV-046: a release is preceded by an independent external review, and
+      # the record is bound to the subject digest it examined.
+      #
+      # Conditional on the TARGET branch, not on the source branch name — the
+      # rule is about what reaches `main`, and a rule keyed to a naming
+      # convention is one a namespace nobody registered walks straight past.
+      # That already happened here twice: `verify/**` and then `spec/**`.
+      - name: External review record (PRs into main only)
+        if: github.event_name == 'pull_request' && github.base_ref == 'main'
+        run: make review.check
 
       - name: Upload coverage report artifact
         if: always()
