@@ -14,11 +14,20 @@ every tracked file. Digesting them covers the whole tree transitively — change
 any byte of any file and its manifest entry changes, and the subject digest with
 it.
 
-Two files are excluded, and the reason is the same for both: a digest cannot
-cover something that carries the digest. ``MANIFEST.sha256`` cannot hash itself,
-and ``project.yaml`` holds the subject digest, so including it would mean
-writing the answer changed the question. The descriptor is the CLAIM about the
-subject; the subject is the normative product it claims to be about.
+Three things are excluded, and the reason is the same for all of them: a digest
+cannot cover something that is about the digest. ``MANIFEST.sha256`` cannot hash
+itself; ``project.yaml`` holds the subject digest; and ``reviews/`` holds records
+NAMED for the subject digest.
+
+The third was missed when this was written, and the omission made the review gate
+unsatisfiable. A review record is a tracked file, so it was part of the subject —
+adding ``reviews/<subject>.md`` changed the subject, so the record's own name was
+already wrong, and adding the newly required record changed it again. Short of
+finding a SHA-256 fixed point there was no tree a review could be recorded for.
+
+The rule the first two follow states it: the subject is the normative product,
+and a claim ABOUT the subject is not part of it. A review is the clearest case of
+a claim about the subject there is.
 
 Deliberately stdlib-only and free of this repository's tooling: a third party
 verifying a release has a clone and a Python, not a Docker daemon, a Vault token
@@ -45,11 +54,22 @@ from pathlib import Path
 MANIFEST = "MANIFEST.sha256"
 DESCRIPTOR = "project.yaml"
 
-# Excluded from the subject: neither can be covered by a digest it carries.
-NOT_SUBJECT = frozenset({MANIFEST, DESCRIPTOR})
-
 # Where external review records live, one per subject digest.
 REVIEWS = "reviews"
+
+# Excluded from the subject: none of these can be covered by a digest they are
+# about. See the module docstring for what happened when reviews/ was not on
+# this list.
+NOT_SUBJECT = frozenset({MANIFEST, DESCRIPTOR})
+NOT_SUBJECT_DIRS = (REVIEWS + "/",)
+
+
+def in_subject(path: str) -> bool:
+    """Whether a tracked path is part of the release subject."""
+    if path in NOT_SUBJECT:
+        return False
+    return not path.startswith(NOT_SUBJECT_DIRS)
+
 
 # The field in project.yaml that carries the subject digest. `buildHash` is
 # where the release template puts a compiled artifact's digest; this repository
@@ -79,7 +99,7 @@ def tracked_files(root: Path) -> list[str]:
     out = subprocess.run(
         ["git", "ls-files"], cwd=root, check=True, capture_output=True, text=True
     ).stdout  # noqa: E501  # nosec B603 B607
-    return sorted(p for p in out.splitlines() if p and p not in NOT_SUBJECT)
+    return sorted(p for p in out.splitlines() if p and in_subject(p))
 
 
 def file_digest(path: Path) -> str:
@@ -140,7 +160,7 @@ def cmd_verify(root: Path) -> int:
     committed = "".join(
         line + "\n"
         for line in (root / MANIFEST).read_text(encoding="utf-8").splitlines()
-        if line.split("  ", 1)[-1] not in NOT_SUBJECT
+        if in_subject(line.split("  ", 1)[-1])
     )
     if rebuilt != committed:
         ok = False

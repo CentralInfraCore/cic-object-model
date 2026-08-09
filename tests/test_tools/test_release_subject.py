@@ -170,12 +170,52 @@ def test_a_tree_with_no_review_record_fails(repo, capsys):
     assert "docs/external-review.md" in out
 
 
-def test_a_record_for_this_tree_passes(repo, capsys):
+def write_review(root: Path, subject: str) -> None:
+    """Write a review record AND track it.
+
+    The `git add` is the whole point. Without it the record is invisible to
+    `git ls-files`, so it is invisible to the subject calculation — and the test
+    passed while the real workflow, where the record arrives committed in a pull
+    request, could not work at all.
+
+    That was a false positive in a test written specifically to check this gate,
+    on a day spent removing false positives. An external audit found it by
+    computing the two digests; nothing here did.
+    """
+    reviews = root / rs.REVIEWS
+    reviews.mkdir(exist_ok=True)
+    (reviews / f"{subject}.md").write_text("# Review\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+
+
+def test_a_tracked_record_for_this_tree_passes(repo, capsys):
     subject = seal(repo)
-    (repo / rs.REVIEWS).mkdir()
-    (repo / rs.REVIEWS / f"{subject}.md").write_text("# Review\n", encoding="utf-8")
+    write_review(repo, subject)
     assert rs.cmd_review(repo) == 0
     assert subject in capsys.readouterr().out
+
+
+def test_recording_a_review_does_not_change_the_subject(repo):
+    """The fixed point the gate depends on.
+
+    `reviews/` is excluded from the subject because a record is a claim ABOUT
+    the subject, named for it. While it was included, adding the record changed
+    the digest the record's own filename referred to, and adding the newly
+    required record changed it again: no tree could carry a review of itself
+    short of a SHA-256 fixed point.
+    """
+    subject = seal(repo)
+    write_review(repo, subject)
+    assert rs.subject_digest(rs.build_manifest(repo)) == subject
+
+    # And a second record does not move it either, so a tree can accumulate
+    # reviews from several angles — which is what three prompts in three
+    # threads produces.
+    (repo / rs.REVIEWS / f"{subject}.adversarial.md").write_text(
+        "# 2\n", encoding="utf-8"
+    )
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+    assert rs.subject_digest(rs.build_manifest(repo)) == subject
 
 
 def test_a_record_for_a_different_tree_does_not_count(repo, capsys):
@@ -187,8 +227,7 @@ def test_a_record_for_a_different_tree_does_not_count(repo, capsys):
     that is true.
     """
     subject = seal(repo)
-    (repo / rs.REVIEWS).mkdir()
-    (repo / rs.REVIEWS / f"{subject}.md").write_text("# Review\n", encoding="utf-8")
+    write_review(repo, subject)
     assert rs.cmd_review(repo) == 0
 
     # One byte of the specification later, the record is about a different tree.

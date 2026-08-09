@@ -18,7 +18,26 @@ The procedure and the three commissioning prompts are in
 in three separate threads, from a cold start each — findings anchor, and an
 angle that arrives already pointed somewhere is not an independent angle.
 
-This directory is empty until the first release under the rule. That is the
-honest state: the rule was written after the review that motivated it, and
-back-dating a record for a tree nobody examined would be exactly the kind of
-claim this repository has spent its time removing.
+## Why this directory is not part of the release subject
+
+A record here is named for the subject digest, so it is a claim *about* the
+subject and cannot be part of it — the same rule that excludes `MANIFEST.sha256`
+and `project.yaml`.
+
+That was missed when the rule was written, and it made INV-046 unsatisfiable: a
+record committed to a pull request changed the digest its own filename referred
+to, and adding the newly required record changed it again. The test did not
+catch it because it wrote the record without `git add`, so `git ls-files` never
+saw it — a false positive in the test written to check this gate.
+
+An external audit found it by computing both digests. Nothing in the repository
+did.
+
+## What is here
+
+Records from the first commissioned review, run as three separate threads
+against `cbaf928`: a claim audit, a semantic divergence audit and an adversarial
+boundary audit. The reviewer had no Go, Rust, Python-test or container
+toolchain, so the findings are source-proven control-flow arguments with minimal
+reproducers rather than executed results. Nine of them were subsequently
+executed here and are marked with what was measured.
