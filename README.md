@@ -17,7 +17,7 @@ written into SPEC.md and propagated nowhere else.
 
 | Component | Status |
 |---|---|
-| `SPEC.md` — 44 numbered invariants | written, normative |
+| `SPEC.md` — 46 numbered invariants | written, normative |
 | `conformance/` — 37 vectors | executed against Go on every CI run |
 | `docs/spec-vector-map.md` | 37 invariants vector-covered, 5 declared unvectorizable with a reason each |
 | `tools/check_spec_vectors.py` | runs and passes; negative-tested |
