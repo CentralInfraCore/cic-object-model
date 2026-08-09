@@ -304,36 +304,46 @@ func TestSealedTemplateContent(t *testing.T) {
 	})
 }
 
-// TestNonStringMappingKeys — YAML allows keys that are not strings, and
-// gopkg.in/yaml.v3 hands those back as map[any]any rather than map[string]any.
-// The library normalises them; without that, an input using a numeric key would
-// take a different path through every mapping check in the pipeline.
+// TestNonStringMappingKeys — a mapping key is a node name, and node names are
+// strings.
 //
-// The schema language has no way to declare such a key, so the correct outcome
-// is a rejection that names it — not a crash, and not a silent skip.
+// This used to assert INV-029: the key was read through the YAML node's textual
+// value, so `1:` arrived as the name "1" and was then rejected for not being
+// declared. A rejection for the wrong reason, and it hid two things.
+//
+// It made `1: x` and `'1': x` — different keys in YAML — indistinguishable, in
+// a model whose purpose is unique addressing. And it disagreed with the Rust
+// implementation, which refused non-string keys outright, so the two did not
+// agree on which names a document contains. Neither was visible from any
+// vector.
+//
+// The last case here was previously asserted as "does not crash and does not
+// pass", with a comment saying pinning the invariant would pin behaviour nobody
+// designed. It is designed now.
 func TestNonStringMappingKeys(t *testing.T) {
 	schema := "model: \"0.2\"\nroot:\n  shape: object\n  children:\n    a:\n      shape: scalar\n      scalar_type: string\n"
 
 	for name, input := range map[string]string{
 		"an integer key": "1: one\n",
 		"a boolean key":  "true: yes\n",
+		"a null key":     "~: x\n",
+		"a sequence key": "? [a, b]\n: value\n",
 	} {
 		t.Run(name, func(t *testing.T) {
 			e := mustReject(t, schema, input, "entry-validation")
-			if e.Invariant != "INV-029" {
-				t.Errorf("invariant = %s, want INV-029 — the key is not declared", e.Invariant)
+			if e.Code != om.CodeMalformedDocument {
+				t.Errorf("code = %s, want %s", e.Code, om.CodeMalformedDocument)
 			}
 		})
 	}
 
-	// A complex key (a sequence used as a mapping key) also rejects, but under
-	// INV-007 rather than INV-029 — the stringified key apparently reaches the
-	// `origin` branch of the envelope walk. It is asserted here only as "does
-	// not crash and does not pass", because pinning the invariant would pin
-	// behaviour nobody designed. Worth a look; not worth guessing at.
-	t.Run("a key that is a list rejects, invariant unpinned", func(t *testing.T) {
-		if _, err := materialize(t, schema, "? [a, b]\n: value\n"); err == nil {
-			t.Error("a sequence used as a mapping key was accepted")
+	// The quoted form of the same text IS a string key, and is refused for the
+	// ordinary reason: nothing declares it. The check must reject the KEY FORM,
+	// not every key that happens to look numeric.
+	t.Run("a quoted numeric key is a string, merely undeclared", func(t *testing.T) {
+		e := mustReject(t, schema, "'1': one\n", "entry-validation")
+		if e.Invariant != "INV-029" {
+			t.Errorf("invariant = %s, want INV-029", e.Invariant)
 		}
 	})
 }

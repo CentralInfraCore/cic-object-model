@@ -48,6 +48,7 @@
 use crate::error::{code, Error, Result, Stage};
 use saphyr::{LoadableYamlNode, Yaml};
 use saphyr_parser::{Event, Parser};
+use std::collections::HashSet;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
@@ -72,6 +73,18 @@ impl Map {
     pub fn contains(&self, k: &str) -> bool {
         self.get(k).is_some()
     }
+    /// Append without looking for an existing key.
+    ///
+    /// `insert` searches the whole vector on every call, so building an n-key
+    /// mapping with it costs `n(n-1)/2` comparisons — the second quadratic in
+    /// this file, and the one that remained after the duplicate-key scan
+    /// stopped being the first. The parser can append safely because
+    /// `scan_input` has already refused duplicates, so there is nothing to
+    /// overwrite.
+    pub fn push(&mut self, k: impl Into<String>, v: Value) {
+        self.0.push((k.into(), v));
+    }
+
     pub fn insert(&mut self, k: impl Into<String>, v: Value) {
         let k = k.into();
         if let Some(slot) = self.0.iter_mut().find(|(key, _)| *key == k) {
@@ -232,7 +245,7 @@ fn scan_input(text: &str, stage: Stage, path: &str, what: &str) -> Result<()> {
             Event::MappingStart(..) => {
                 consume_value(&mut stack);
                 stack.push(Frame {
-                    keys: Vec::new(),
+                    keys: HashSet::new(),
                     expecting_key: true,
                     is_mapping: true,
                 });
@@ -240,7 +253,7 @@ fn scan_input(text: &str, stage: Stage, path: &str, what: &str) -> Result<()> {
             Event::SequenceStart(..) => {
                 consume_value(&mut stack);
                 stack.push(Frame {
-                    keys: Vec::new(),
+                    keys: HashSet::new(),
                     expecting_key: false,
                     is_mapping: false,
                 });
@@ -272,7 +285,7 @@ fn scan_input(text: &str, stage: Stage, path: &str, what: &str) -> Result<()> {
                             ),
                         ));
                     }
-                    frame.keys.push(k);
+                    frame.keys.insert(k);
                 }
             }
             _ => {}
@@ -285,7 +298,15 @@ fn scan_input(text: &str, stage: Stage, path: &str, what: &str) -> Result<()> {
 /// scalar in it is a key or a value. Sequences push a frame too, so a mapping
 /// nested inside one does not inherit its parent's key set.
 struct Frame {
-    keys: Vec<String>,
+    /// A set, not a `Vec`.
+    ///
+    /// This was a `Vec<String>` with a `contains` before every push, which is
+    /// `n(n-1)/2` string comparisons for a flat mapping of n keys — quadratic,
+    /// under a comment claiming the scan is linear in the input's own size.
+    /// Measured on the `Vec`: 10k keys 1.0s, 20k 2.9s, 40k 11.6s for 389 KB.
+    /// Cheap to write, expensive to read, which is the shape of every
+    /// amplification finding in this file.
+    keys: HashSet<String>,
     expecting_key: bool,
     is_mapping: bool,
 }
@@ -325,7 +346,7 @@ fn convert(y: &Yaml, stage: Stage, path: &str, what: &str) -> Result<Value> {
                         format!("{what} has a non-string mapping key; node names are strings"),
                     ));
                 };
-                out.insert(key.to_string(), convert(v, stage, path, what)?);
+                out.push(key.to_string(), convert(v, stage, path, what)?);
             }
             Value::Map(out)
         }

@@ -292,6 +292,37 @@ fn term(t: &Value, path: &str) -> Result<Term> {
                     "a sealed term must carry both template and path",
                 ));
             };
+            // And nothing else, and both scalars.
+            //
+            // INV-013 says exactly four productions. Checking that the two
+            // members are PRESENT leaves the term open: a constructor with a
+            // third member, or a `template` that is a sequence, passed both
+            // implementations while being no production the grammar contains.
+            // The same presence-versus-shape mistake the sequence match fixed
+            // one level up, one level down.
+            if sm.len() != 2 {
+                return Err(Error::new(
+                    code::ORIGIN_GRAMMAR,
+                    "INV-013",
+                    Stage::FinalValidation,
+                    path,
+                    format!(
+                        "a sealed term carries template and path and nothing else; found {:?}",
+                        sm.keys()
+                    ),
+                ));
+            }
+            for name in ["template", "path"] {
+                if matches!(sm.get(name), Some(Value::Map(_) | Value::Seq(_))) {
+                    return Err(Error::new(
+                        code::ORIGIN_GRAMMAR,
+                        "INV-013",
+                        Stage::FinalValidation,
+                        path,
+                        format!("a sealed term's {name} must be a scalar"),
+                    ));
+                }
+            }
             Ok(Term::Sealed(Sealed { template, path: p }))
         }
         _ => Err(Error::new(

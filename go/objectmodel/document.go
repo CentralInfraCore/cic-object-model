@@ -125,6 +125,24 @@ func checkNode(n *yaml.Node, what string, stage Stage) error {
 				what))
 	}
 
+	// A mapping key is a node name, and node names are strings.
+	//
+	// This read the key node's textual .Value without looking at its tag, so
+	// `1: x` arrived as the name "1" — indistinguishable from `'1': x`, which
+	// is a different key in YAML. The Rust implementation rejected the same
+	// document, so the two disagreed on which names exist. Coercion is also
+	// how two distinct keys collapse into one in a model whose purpose is
+	// unique addressing.
+	if n.Kind == yaml.MappingNode {
+		for i := 0; i < len(n.Content); i += 2 {
+			if k := n.Content[i]; k.Tag != "" && k.Tag != "!!str" {
+				return newError(CodeMalformedDocument, "INV-013", stage, "$",
+					fmt.Sprintf("%s has a non-string mapping key (%s); node names are strings",
+						what, k.Value))
+			}
+		}
+	}
+
 	// INV-041 — one address written twice has no single answer. The same name
 	// at different addresses is not a duplicate, which is why this looks only
 	// at the keys of ONE mapping.
