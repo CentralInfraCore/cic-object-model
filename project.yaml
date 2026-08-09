@@ -49,7 +49,7 @@ metadata:
   #
   # Recompute with `make release.subject`; check with `make release.verify`,
   # which a third party can run with a clone and a Python and nothing else.
-  buildHash: '74d68dff85ede0b32343da4fe25acc0903f019563e08c395ffcbf7c195df8ab9'
+  buildHash: '83cccc580b2328eb8324cde18f2e941c155870c17a2cdf0b771851187a098d20'
   cicSign: 'TBD'
   cicSignedCA:
     certificate: "TBD — filled by the release process with the CIC Root CA certificate"
