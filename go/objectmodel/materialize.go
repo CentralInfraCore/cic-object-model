@@ -1,5 +1,7 @@
 package objectmodel
 
+import "fmt"
+
 // CanonicalObject is Validated<Canonical<CICObject>> (SPEC INV-032): the type
 // of a module's input, and the only thing that may cross the module boundary
 // of SPEC §9.
@@ -104,9 +106,23 @@ func Materialize(schemaYAML, inputYAML []byte) (CanonicalObject, error) {
 		return nil, err
 	}
 	// §8.8
-	out, err := emitCanonical(doc), error(nil)
-	if err != nil {
-		return nil, err
+	out := emitCanonical(doc)
+
+	// Read back what was written, before anything is allowed to leave with it.
+	//
+	// §8.7 validated the projected TREE; that says nothing about the bytes the
+	// serializer produced from it. The two came apart for a child named `a: b`,
+	// whose key was written unquoted: the tree validated, the bytes did not
+	// parse at all, and the only producer of canonical objects returned a
+	// `Validated<Canonical<CICObject>>` whose canonical YAML was not YAML
+	// (audit adversarial F-04).
+	//
+	// The Rust implementation revalidated its own output from the start and so
+	// turned the same defect into a rejection rather than a malformed object
+	// handed to a caller. This is that check, arriving late.
+	if err := ValidateCanonicalDocument(out); err != nil {
+		return nil, newError(CodeMalformedDocument, "INV-043", StageCanonicalization, "$",
+			fmt.Sprintf("the serializer produced bytes that are not a canonical object: %v", err))
 	}
 
 	return &validatedCanonical{model: schema.model, root: root, bytes: out}, nil

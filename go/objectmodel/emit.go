@@ -52,7 +52,7 @@ func emitNodeMembers(b *strings.Builder, doc any, depth int) {
 			emitValue(b, v, depth)
 		default:
 			writeIndent(b, depth)
-			b.WriteString(k)
+			b.WriteString(emitKey(k))
 			b.WriteString(":\n")
 			emitNodeMembers(b, v, depth+1)
 		}
@@ -73,7 +73,7 @@ func emitValue(b *strings.Builder, v any, depth int) {
 		for _, k := range t.keys {
 			child, _ := t.get(k)
 			writeIndent(b, depth+1)
-			b.WriteString(k)
+			b.WriteString(emitKey(k))
 			if isNode(child) {
 				b.WriteString(":\n")
 				emitNodeMembers(b, child, depth+2)
@@ -134,6 +134,26 @@ func stripFirstIndent(b *strings.Builder, start, depth int) {
 		b.WriteString(tail[len(pad):])
 	}
 }
+
+// emitKey writes a mapping key under the same rule as a scalar value.
+//
+// Keys used to be written verbatim while the quoting rule was applied only to
+// values, and the two are the same problem: a key a reader would take for
+// something other than text changes what the document means. A child named
+// `a: b` produced
+//
+//	values:
+//	  a: b:
+//	    values: x
+//
+// which is not the same mapping and is not YAML at all — PyYAML rejects it with
+// "mapping values are not allowed here". The only producer of canonical objects
+// could return bytes that are not a canonical object.
+//
+// Primitive names never need this, since they come from a fixed set of
+// identifiers. Payload child names and opaque keys are whatever the schema or
+// the author wrote.
+func emitKey(k string) string { return quoteIfNeeded(k) }
 
 func writeIndent(b *strings.Builder, depth int) {
 	for i := 0; i < depth; i++ {

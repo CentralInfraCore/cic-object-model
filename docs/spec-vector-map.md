@@ -58,7 +58,7 @@ implementation. Agreement *between* implementations is still an untested claim.
 | INV-040 | Every node has exactly one address | 2.5 | **see Unvectorizable** | `validation/001_origin_yaml_schema_conflict` <br> `validation/002_origin_empty` |
 | INV-041 | A mapping declares no key twice | 2.6 | `invalid/008_duplicate_mapping_key` |
 | INV-042 | No YAML anchors or aliases | 2.6 | `invalid/009_yaml_alias` |
-| INV-043 | The canonical serialization, byte for byte | 8.8.1 | every `materialization/*` vector: the runners compare bytes |
+| INV-043 | The canonical serialization, byte for byte | 8.8.1 | every `materialization/*` vector: the runners compare bytes <br> `materialization/014_hostile_keys` |
 | INV-044 | Canonical member order | 8.8.2 | `materialization/006_closure_opaque` <br> `materialization/012_discriminator_payload_keywords` <br> `materialization/013_access_inherit_injection` |
 
 **32 of 34 invariants are vector-covered.** The remaining

@@ -26,6 +26,21 @@ pub fn to_yaml(root: &Node) -> Vec<u8> {
     out.into_bytes()
 }
 
+/// Write a mapping key under the same rule as a scalar value.
+///
+/// Keys used to be written verbatim while the quoting rule applied only to
+/// values, and the two are the same problem: a key a reader would take for
+/// something other than text changes what the document means. A child named
+/// `a: b` produces `a: b:`, which is not the same mapping and is not YAML.
+///
+/// Go emitted exactly that and returned it, because it does not reparse what it
+/// writes. This crate revalidates its own output, so the same case surfaced as
+/// a rejection rather than as a malformed object handed to a caller — a better
+/// failure, and still a failure.
+fn emit_key(k: &str) -> String {
+    quote_if_needed(k)
+}
+
 fn indent(out: &mut String, depth: usize) {
     for _ in 0..depth {
         out.push_str("  ");
@@ -46,7 +61,10 @@ fn write_node_members(out: &mut String, n: &Node, depth: usize) {
     for name in n.primitive_names() {
         let p = n.primitive(name).expect("a listed primitive resolves");
         indent(out, depth);
-        out.push_str(name);
+        // A primitive name is one of the eight identifiers of §6.1 and never
+        // needs quoting; it goes through the same function anyway, so there is
+        // one rule for keys rather than two places to keep in step.
+        out.push_str(&emit_key(name));
         out.push_str(":\n");
         write_node_members(out, p, depth + 1);
     }
@@ -68,7 +86,7 @@ fn write_payload(out: &mut String, payload: &Payload, depth: usize) {
             out.push('\n');
             for (name, child) in entries {
                 indent(out, depth + 1);
-                out.push_str(name);
+                out.push_str(&emit_key(name));
                 out.push_str(":\n");
                 write_node_members(out, child, depth + 2);
             }
@@ -106,7 +124,7 @@ fn write_raw(out: &mut String, v: &Value, depth: usize) {
             out.push('\n');
             for (k, val) in &m.0 {
                 indent(out, depth + 1);
-                out.push_str(k);
+                out.push_str(&emit_key(k));
                 out.push(':');
                 write_raw(out, val, depth + 1);
             }

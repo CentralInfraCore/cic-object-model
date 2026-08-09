@@ -1,0 +1,19 @@
+---
+model: "0.2"
+root:
+  shape: object
+  children:
+    "a: b":
+      shape: scalar
+      scalar_type: string
+      default: x
+    "on":
+      shape: scalar
+      scalar_type: string
+      default: y
+    "1500":
+      shape: scalar
+      scalar_type: string
+      default: z
+    blob:
+      shape: opaque
