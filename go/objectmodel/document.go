@@ -1,7 +1,10 @@
 package objectmodel
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
+	"io"
 
 	"gopkg.in/yaml.v3"
 )
@@ -31,13 +34,34 @@ func parseDocument(data []byte, invariant string, stage Stage, what string) (any
 		return newError(code, inv, stage, "$", detail)
 	}
 
-	// Decode into a Node first: the node tree keeps every key the document
-	// wrote, and it is the only place an alias is still distinguishable from
-	// the value it expands to.
+	// Decoded through a Decoder rather than Unmarshal, because Unmarshal reads
+	// the FIRST document and says nothing about the rest.
+	//
+	// §8.8.1 says one document per object. A second one used to be dropped in
+	// silence, so validation authenticated a PREFIX of the supplied bytes:
+	// `-validate` printed `valid` for a file whose second document was never
+	// looked at, while a consumer reading the same bytes with a
+	// multi-document loader saw both. The half that was checked is not
+	// necessarily the half a reader acts on.
+	dec := yaml.NewDecoder(bytes.NewReader(data))
 	var doc yaml.Node
-	if err := yaml.Unmarshal(data, &doc); err != nil {
+	if err := dec.Decode(&doc); err != nil {
+		if errors.Is(err, io.EOF) {
+			// No document at all is the empty mapping, which the callers below
+			// already handle as a nil result.
+			return nil, nil
+		}
 		return nil, fail(CodeMalformedDocument, invariant,
 			fmt.Sprintf("%s is not valid YAML: %v", what, err))
+	}
+	var extra yaml.Node
+	if err := dec.Decode(&extra); !errors.Is(err, io.EOF) {
+		if err != nil {
+			return nil, fail(CodeMalformedDocument, invariant,
+				fmt.Sprintf("%s is not valid YAML after the first document: %v", what, err))
+		}
+		return nil, fail(CodeMalformedDocument, "INV-043",
+			fmt.Sprintf("%s contains more than one YAML document; an object is exactly one", what))
 	}
 	if err := checkNode(&doc, what, stage); err != nil {
 		return nil, err

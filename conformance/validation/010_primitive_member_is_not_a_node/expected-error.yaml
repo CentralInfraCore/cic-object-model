@@ -1,0 +1,8 @@
+---
+error:
+  code: E_MALFORMED_DOCUMENT
+  invariant: INV-003
+  stage: final-validation
+  path: $.shape
+  detail: >-
+    a primitive member must itself be a CIC node

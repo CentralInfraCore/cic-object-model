@@ -114,7 +114,11 @@ var expectedCounts = map[string]int{
 	// covered by four vectors, one per form, all positive — so the corpus
 	// asserted that the four are accepted and never that a fifth is refused.
 	// [yaml, yaml] and [schema, sealed(t,p)] passed against that corpus.
-	"validation": 9,
+	// 11 since the second external audit: 010 and 011 are a primitive member
+	// that is not a node, and a byte string carrying more than one document.
+	// Both were accepted, and the second by BOTH implementations — validation
+	// authenticated a prefix of the bytes it was given.
+	"validation": 11,
 }
 
 type expectedError struct {
