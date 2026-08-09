@@ -20,7 +20,7 @@ written into SPEC.md and propagated nowhere else.
 | `SPEC.md` — 46 numbered invariants | written, normative |
 | `conformance/` — 38 vectors | executed against Go on every CI run |
 | `docs/spec-vector-map.md` | 37 invariants vector-covered, 5 declared unvectorizable with a reason each |
-| `tools/check_spec_vectors.py` | runs and passes; negative-tested |
+| `tools/check_spec_vectors.py` | runs and passes; checks the invariant index, not RFC-2119 clauses |
 | `go/` | implemented — corpus, fuzz, mutation, adversarial and CLI golden tests |
 | `rust/` | implemented — corpus, reader, rejection and CLI golden tests |
 | `mk/rust.mk` | present; digest-pinned toolchain, `make rust.quality` |
@@ -74,6 +74,7 @@ conformance/                the falsifiable part — YAML in, YAML out
   validation/                 canonical object -> accept / reject
 docs/
   spec-vector-map.md          every invariant -> its vectors, or why it has none
+  pending-decisions.md        questions the spec does not answer and code does
   decision-delta.md           what this model changes in D-003 / D-011
   migration-surface.md        the measured file list this model would change
   branch-decision.md          why base-repo wasm/main

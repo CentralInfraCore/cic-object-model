@@ -1205,6 +1205,10 @@ The procedure, and the three commissioning prompts a request carries, are in
 
 ## 13. Related documents
 
+- [`docs/pending-decisions.md`](docs/pending-decisions.md) — questions this
+  document does not answer, which an implementation has answered anyway. Fourteen
+  of them, three answered differently in the two implementations. Read this
+  before adding a rule: several of these are load-bearing and unwritten.
 - [`docs/spec-defects.md`](docs/spec-defects.md) — where this document is not
   executable, measured by implementing it. **Read SD-017 before relying on
   INV-033.**
