@@ -3,6 +3,7 @@ package module_test
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -308,5 +309,158 @@ func TestCanonicalizeIsTheInverseTheBindingNeeds(t *testing.T) {
 	// A nil tree has no bytes, rather than a panic at a trust boundary.
 	if objectmodel.Canonicalize(nil) != nil {
 		t.Error("Canonicalize(nil) invented an object")
+	}
+}
+
+// countingForgery answers honestly for a fixed number of calls and then lies.
+//
+// It is the audit's F-07 and it is the sharpest kind of finding: it does not
+// break any single check, it breaks the ASSUMPTION that a check and the use of
+// what it checked see the same value. The previous boundary read CanonicalYAML
+// twice, so `honest = 2` passed validation, passed the tree/bytes binding, and
+// left the third read — the one a real module would make — unprotected.
+type countingForgery struct {
+	objectmodel.CanonicalObject
+	root       *objectmodel.Node
+	good, evil []byte
+	honest     int
+
+	versionCalls, rootCalls, yamlCalls int
+}
+
+func (f *countingForgery) ModelVersion() string {
+	f.versionCalls++
+	return module.ModelVersion
+}
+
+func (f *countingForgery) Root() *objectmodel.Node {
+	f.rootCalls++
+	return f.root
+}
+
+func (f *countingForgery) CanonicalYAML() []byte {
+	f.yamlCalls++
+	if f.yamlCalls <= f.honest {
+		return f.good
+	}
+	return f.evil
+}
+
+func twoObjects(t *testing.T) (objectmodel.CanonicalObject, objectmodel.CanonicalObject) {
+	t.Helper()
+	schema := []byte("model: \"0.2\"\nroot:\n  shape: object\n  children:\n    mtu:\n      shape: scalar\n      scalar_type: integer\n      default: 1500\n")
+	return mustMaterialize(t, schema, []byte("mtu: 9000\n")),
+		mustMaterialize(t, schema, []byte("{}\n"))
+}
+
+// TestBoundaryReadsEachMethodExactlyOnce is the fix, stated as the property
+// rather than as the absence of one attack.
+//
+// A count of one cannot be beaten by a stateful value: there is no later call
+// to answer differently. Any future check added to the boundary that reads
+// again reopens the hole, and this test fails when it does — which is the point
+// of asserting the count instead of asserting that this particular forgery
+// fails.
+func TestBoundaryReadsEachMethodExactlyOnce(t *testing.T) {
+	honest, other := twoObjects(t)
+	f := &countingForgery{
+		root:   honest.Root(),
+		good:   objectmodel.Canonicalize(honest.Root()),
+		evil:   other.CanonicalYAML(),
+		honest: 1000, // always honest: this test is about counts, not lying
+	}
+	if err := module.Execute(f); err != nil {
+		t.Fatalf("an honest value was refused: %v", err)
+	}
+	for name, got := range map[string]int{
+		"ModelVersion":  f.versionCalls,
+		"Root":          f.rootCalls,
+		"CanonicalYAML": f.yamlCalls,
+	} {
+		if got != 1 {
+			t.Errorf("%s was read %d times, want exactly 1 — a second read is a "+
+				"second chance for a stateful value to answer differently", name, got)
+		}
+	}
+}
+
+// TestStatefulForgeryCannotOutlastTheChecks — the attack itself, at every count
+// of honest answers a forger might choose.
+func TestStatefulForgeryCannotOutlastTheChecks(t *testing.T) {
+	for _, honest := range []int{0, 1, 2, 3, 5} {
+		honest := honest
+		t.Run(fmt.Sprintf("honest_for_%d_calls", honest), func(t *testing.T) {
+			hon, other := twoObjects(t)
+			f := &countingForgery{
+				root:   hon.Root(),
+				good:   objectmodel.Canonicalize(hon.Root()),
+				evil:   other.CanonicalYAML(),
+				honest: honest,
+			}
+			err := module.Execute(f)
+
+			// With one read, the only question is what that read returned.
+			// honest == 0 means the boundary saw the evil bytes and must
+			// refuse; anything else means it saw the good ones and accepts.
+			if honest == 0 {
+				if err == nil {
+					t.Fatal("the boundary accepted an object whose bytes are not its tree's")
+				}
+				if !errors.Is(err, module.ErrObjectNotBound) {
+					t.Errorf("refused for the wrong reason: %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("an object that answered honestly was refused: %v", err)
+			}
+			// And the crucial part: whatever the forgery would say next, the
+			// module is not holding it.
+			if f.yamlCalls != 1 {
+				t.Errorf("the boundary read the bytes %d times", f.yamlCalls)
+			}
+		})
+	}
+}
+
+// TestDeliveredIsIndependentOfTheValueThatCrossed — a module works from the
+// snapshot, and rewriting the caller's buffer afterwards cannot reach it.
+//
+// Without the copy, the boundary would validate bytes and then hand the module
+// the same backing array, so the validation would be a statement about bytes
+// that no longer exist by the time anything reads them.
+func TestDeliveredIsIndependentOfTheValueThatCrossed(t *testing.T) {
+	honest, _ := twoObjects(t)
+
+	original := objectmodel.Canonicalize(honest.Root())
+	shared := make([]byte, len(original))
+	copy(shared, original)
+
+	f := &countingForgery{root: honest.Root(), good: shared, evil: shared, honest: 1000}
+	delivered, err := module.Accept(f)
+	if err != nil {
+		t.Fatalf("an honest value was refused: %v", err)
+	}
+
+	// The caller rewrites the slice it still holds.
+	for i := range shared {
+		shared[i] = 'x'
+	}
+
+	if !bytes.Equal(delivered.CanonicalYAML(), original) {
+		t.Error("rewriting the caller's buffer changed what was delivered")
+	}
+	if err := objectmodel.ValidateCanonicalDocument(delivered.CanonicalYAML()); err != nil {
+		t.Errorf("the delivered bytes stopped being a valid object: %v", err)
+	}
+
+	// And the snapshot handed out is itself a copy, so a module cannot corrupt
+	// it for the next reader either.
+	first := delivered.CanonicalYAML()
+	for i := range first {
+		first[i] = 'y'
+	}
+	if !bytes.Equal(delivered.CanonicalYAML(), original) {
+		t.Error("a module writing to the bytes it was given changed the delivery")
 	}
 }
