@@ -1109,6 +1109,39 @@ rule was actually protecting.
 
 ---
 
+### 11.3 What a release requires
+
+**INV-046** — A release MUST be preceded by an **independent external review**
+of its subject (§11.2). The review MUST be recorded against the subject digest
+it examined, and a subject with no such record MUST NOT be released.
+
+Independent means: not the author, working from the artifact rather than from a
+description of it, and free to disagree with this document. The last clause is
+the one that does the work — a review that only checks the implementations
+against `SPEC.md` cannot find a defect *in* `SPEC.md`, and that is where the
+most expensive ones have been.
+
+The rule exists because of what the first such review found. Nineteen findings
+against one release, and the four checked first were confirmed by measurement
+within minutes: the model version had split five ways, a reader handed out the
+node's own slice so a validated object could be rewritten through it, the origin
+grammar accepted forms it declares invalid, and the manifest gate could not see
+a file missing from the manifest. Every one had passed a full green CI,
+repeatedly.
+
+They passed because **the gates were written by the same reading that wrote the
+code**. No internal check acquires an outside view by being made stricter; that
+is a property of who is looking, not of how hard.
+
+What can be enforced mechanically is narrow and worth stating exactly: that a
+review record exists **for this tree**. Whether a person did the work, or did it
+well, is not checkable and is not claimed. Binding the record to the subject
+digest is what stops "it was reviewed" from surviving every later change to the
+tree — a review of a different subject is a review of a different thing.
+
+The procedure, and the three commissioning prompts a request carries, are in
+[`docs/external-review.md`](docs/external-review.md).
+
 ## 12. Invariant index
 
 | ID | Statement | §|
@@ -1158,6 +1191,7 @@ rule was actually protecting.
 | INV-043 | The canonical serialization, byte for byte | 8.8.1 |
 | INV-044 | Canonical member order | 8.8.2 |
 | INV-045 | A release's subject is the whole normative product | 11.2 |
+| INV-046 | A release is preceded by an independent external review | 11.3 |
 
 ---
 

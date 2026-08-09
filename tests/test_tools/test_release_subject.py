@@ -155,3 +155,45 @@ def test_the_manifest_matches_the_shell_pipeline_byte_for_byte(repo):
         text=True,
     ).stdout
     assert rs.build_manifest(repo) == shell
+
+
+# ---------------------------------------------------------------------------
+# INV-046 — the external review record
+# ---------------------------------------------------------------------------
+
+
+def test_a_tree_with_no_review_record_fails(repo, capsys):
+    seal(repo)
+    assert rs.cmd_review(repo) == 1
+    out = capsys.readouterr().out
+    assert "no external review record" in out
+    assert "docs/external-review.md" in out
+
+
+def test_a_record_for_this_tree_passes(repo, capsys):
+    subject = seal(repo)
+    (repo / rs.REVIEWS).mkdir()
+    (repo / rs.REVIEWS / f"{subject}.md").write_text("# Review\n", encoding="utf-8")
+    assert rs.cmd_review(repo) == 0
+    assert subject in capsys.readouterr().out
+
+
+def test_a_record_for_a_different_tree_does_not_count(repo, capsys):
+    """The binding is the point.
+
+    Without it, a review record keeps asserting something about a tree that has
+    since changed — "it was reviewed" surviving every commit after the review,
+    which is how a review becomes a thing that was once done rather than a thing
+    that is true.
+    """
+    subject = seal(repo)
+    (repo / rs.REVIEWS).mkdir()
+    (repo / rs.REVIEWS / f"{subject}.md").write_text("# Review\n", encoding="utf-8")
+    assert rs.cmd_review(repo) == 0
+
+    # One byte of the specification later, the record is about a different tree.
+    spec = repo / "SPEC.md"
+    spec.write_text(spec.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+    assert rs.cmd_review(repo) == 1
+    out = capsys.readouterr().out
+    assert "review a different tree" in out

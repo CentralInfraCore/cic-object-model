@@ -75,6 +75,17 @@ jobs:
       - name: make ci
         run: make ci
 
+      # INV-046: a release is preceded by an independent external review, and
+      # the record is bound to the subject digest it examined.
+      #
+      # Conditional on the TARGET branch, not on the source branch name — the
+      # rule is about what reaches `main`, and a rule keyed to a naming
+      # convention is one a namespace nobody registered walks straight past.
+      # That already happened here twice: `verify/**` and then `spec/**`.
+      - name: External review record (PRs into main only)
+        if: github.event_name == 'pull_request' && github.base_ref == 'main'
+        run: make review.check
+
       - name: Upload coverage report artifact
         if: always()
         uses: actions/upload-artifact@v4

@@ -48,6 +48,9 @@ DESCRIPTOR = "project.yaml"
 # Excluded from the subject: neither can be covered by a digest it carries.
 NOT_SUBJECT = frozenset({MANIFEST, DESCRIPTOR})
 
+# Where external review records live, one per subject digest.
+REVIEWS = "reviews"
+
 # The field in project.yaml that carries the subject digest. `buildHash` is
 # where the release template puts a compiled artifact's digest; this repository
 # compiles nothing, and the note beside the field already said the subject is
@@ -184,12 +187,46 @@ def cmd_verify(root: Path) -> int:
     return 0 if ok else 1
 
 
+def cmd_review(root: Path) -> int:
+    """Is there an external review record for the tree that is here?
+
+    `devel` reaches `main` only after an independent external review
+    (SPEC INV-046, docs/external-review.md). No check can establish that a
+    person did the work, or that they did it well. What it CAN establish is
+    WHICH TREE they were looking at — a record naming a different subject is a
+    review of a different thing, and without that binding "we had it reviewed"
+    survives every subsequent change to the tree.
+    """
+    subject = subject_digest(build_manifest(root))
+    reviews_dir = root / REVIEWS
+    record = reviews_dir / f"{subject}.md"
+    if record.is_file():
+        print(f"ok    external review recorded: {REVIEWS}/{subject}.md")
+        return 0
+
+    print("FAIL  no external review record for this tree")
+    print(f"        expected  {REVIEWS}/{subject}.md")
+    existing = (
+        sorted(p.name for p in reviews_dir.glob("*.md")) if reviews_dir.is_dir() else []
+    )
+    if existing:
+        print(f"        present   {', '.join(existing)}")
+        print("        those review a different tree")
+    print("        see docs/external-review.md for the procedure and the three")
+    print("        commissioning prompts")
+    return 1
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("command", choices=["compute", "verify"])
+    parser.add_argument("command", choices=["compute", "verify", "review"])
     args = parser.parse_args()
     root = repo_root()
-    return cmd_compute(root) if args.command == "compute" else cmd_verify(root)
+    if args.command == "compute":
+        return cmd_compute(root)
+    if args.command == "review":
+        return cmd_review(root)
+    return cmd_verify(root)
 
 
 if __name__ == "__main__":
