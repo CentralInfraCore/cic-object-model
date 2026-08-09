@@ -1,7 +1,10 @@
 package module_test
 
 import (
+	"bytes"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -213,4 +216,97 @@ func mustNotPanic(t *testing.T, f func() error) (err error) {
 		}
 	}()
 	return f()
+}
+
+// forgedSplitView is audit finding F-02, built rather than argued about.
+//
+// It carries a REAL node tree, taken from a legitimate materialization, and a
+// DIFFERENT byte string that is itself a perfectly valid canonical object. Every
+// check the boundary had before this: the tree is real, so Root() is non-nil and
+// its version is right; the bytes validate, because they are a valid object.
+// Only the pairing is a lie.
+//
+// This is the forgery the earlier adversarial tests did not build. They paired a
+// real tree with INVALID bytes, which the validation check catches, and stopping
+// there made the boundary look stronger than it was: "the bytes validate" was
+// being read as "the bytes are this object's".
+type forgedSplitView struct {
+	objectmodel.CanonicalObject
+	realRoot  *objectmodel.Node
+	otherBody []byte
+}
+
+func (f forgedSplitView) ModelVersion() string    { return module.ModelVersion }
+func (f forgedSplitView) Root() *objectmodel.Node { return f.realRoot }
+func (f forgedSplitView) CanonicalYAML() []byte   { return f.otherBody }
+
+// TestSplitViewForgeryIsRefused — the two views must describe the same object.
+func TestSplitViewForgeryIsRefused(t *testing.T) {
+	schema := []byte("model: \"0.2\"\nroot:\n  shape: object\n  children:\n    mtu:\n      shape: scalar\n      scalar_type: integer\n      default: 1500\n")
+
+	// Two legitimate objects. Everything about each of them is real.
+	nine := mustMaterialize(t, schema, []byte("mtu: 9000\n"))
+	fifteen := mustMaterialize(t, schema, []byte("{}\n"))
+
+	// Sanity: they are genuinely different objects, so the test is not passing
+	// because the two happen to serialize alike.
+	if bytes.Equal(nine.CanonicalYAML(), fifteen.CanonicalYAML()) {
+		t.Fatal("the two fixtures are the same object; the forgery would be a no-op")
+	}
+	// And the bytes we are about to smuggle are valid on their own — the
+	// boundary's validation check has nothing to object to.
+	if err := objectmodel.ValidateCanonicalDocument(fifteen.CanonicalYAML()); err != nil {
+		t.Fatalf("the substituted bytes are not a valid object: %v", err)
+	}
+
+	forged := forgedSplitView{realRoot: nine.Root(), otherBody: fifteen.CanonicalYAML()}
+
+	err := module.Execute(forged)
+	if err == nil {
+		t.Fatal("the boundary accepted an object whose tree and bytes describe different objects")
+	}
+	if !errors.Is(err, module.ErrObjectNotBound) {
+		t.Errorf("rejected for the wrong reason: %v", err)
+	}
+
+	// The negative control: the same forgery TYPE, carrying the bytes that do
+	// belong to the tree, gets through. The check is rejecting the mismatch,
+	// not the shape of the value.
+	honest := forgedSplitView{realRoot: nine.Root(), otherBody: nine.CanonicalYAML()}
+	if err := module.Execute(honest); err != nil {
+		t.Errorf("a value whose tree and bytes agree was refused: %v", err)
+	}
+}
+
+// TestCanonicalizeIsTheInverseTheBindingNeeds — the property the check rests on.
+//
+// Re-serializing a tree must reproduce the object's own bytes exactly. Before
+// §8.8.1 it could not: the serialization was undefined, so a re-serialization
+// differing from the original was nobody's fault and the binding check above
+// would have rejected every honest object.
+func TestCanonicalizeIsTheInverseTheBindingNeeds(t *testing.T) {
+	for _, vector := range []string{
+		"materialization/001_origin_yaml",
+		"materialization/006_closure_opaque",
+		"materialization/008_normalize_list",
+		"materialization/013_access_inherit_injection",
+	} {
+		dir := filepath.Join("../../conformance", vector)
+		read := func(n string) []byte {
+			b, err := os.ReadFile(filepath.Join(dir, n))
+			if err != nil {
+				t.Fatalf("%s: %v", vector, err)
+			}
+			return b
+		}
+		obj := mustMaterialize(t, read("schema.yaml"), read("input.yaml"))
+		if !bytes.Equal(objectmodel.Canonicalize(obj.Root()), obj.CanonicalYAML()) {
+			t.Errorf("%s: re-serializing the tree does not reproduce the object's bytes\n--- again ---\n%s\n--- object ---\n%s",
+				vector, objectmodel.Canonicalize(obj.Root()), obj.CanonicalYAML())
+		}
+	}
+	// A nil tree has no bytes, rather than a panic at a trust boundary.
+	if objectmodel.Canonicalize(nil) != nil {
+		t.Error("Canonicalize(nil) invented an object")
+	}
 }

@@ -766,6 +766,34 @@ vectors across releases either.
 
 ## SD-019 — INV-032's type-level guarantee is defeatable by interface embedding
 
+**Still open, and narrowed.** The type-level guarantee cannot be restored in Go;
+it is a property of the language. What has changed is what an embedded forgery
+can accomplish with it.
+
+Before: a forged value pairing a REAL node tree with a different but perfectly
+valid byte string crossed the boundary. The tree was real, the bytes validated,
+and the only lie was the pairing — so a module reading the tree and one reading
+the serialization were told different things by the same object. That was audit
+finding F-02, and it was never built until now; the earlier adversarial tests
+paired a real tree with INVALID bytes, which made the boundary look stronger
+than it was.
+
+After: the boundary re-serializes the tree and compares
+(`module.ErrObjectNotBound`), so the two views must describe the same object.
+This was not possible before §8.8.1: with the serialization undefined, a
+re-serialization differing from the original was nobody's fault, and the check
+would have rejected every honest object.
+
+What remains is an object assembled elsewhere whose tree and bytes are mutually
+consistent and which never went through materialization. Every check the
+boundary can make passes, because there is nothing left to catch it with short
+of the type system Go does not offer here. The Rust implementation has no such
+hole: `CanonicalObject` is a struct with private fields and `materialize` is its
+only constructor, so the forgery does not compile.
+
+The original entry follows.
+
+
 | | |
 |---|---|
 | **Where** | `SPEC.md` §9 (INV-032) |

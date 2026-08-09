@@ -7,6 +7,7 @@
 package module
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 
@@ -37,6 +38,15 @@ var ErrNilObject = errors.New("module: nil object at the boundary; INV-032 requi
 // defeatable by interface embedding (docs/spec-defects.md SD-019), so the
 // boundary re-checks rather than trusting the type alone.
 var ErrUnvalidatedObject = errors.New("module: the object's canonical bytes are not valid")
+
+// ErrObjectNotBound is returned when an object's node tree and its
+// serialization do not describe the same object.
+//
+// A CanonicalObject that materialization produced always satisfies this: the
+// bytes were made from the tree. Reaching this error means the value was
+// assembled elsewhere, which INV-032 says cannot happen and Go cannot prevent
+// (docs/spec-defects.md SD-019).
+var ErrObjectNotBound = errors.New("module: the object's tree and bytes describe different objects")
 
 // ErrModelVersion is returned when the host offers an object of a version
 // this module has not declared (SPEC INV-034).
@@ -89,6 +99,21 @@ func Execute(obj objectmodel.CanonicalObject) (err error) {
 	// delivery buys that back.
 	if err := objectmodel.ValidateCanonicalDocument(obj.CanonicalYAML()); err != nil {
 		return fmt.Errorf("%w: %v", ErrUnvalidatedObject, err)
+	}
+	// And the two views must describe the SAME object.
+	//
+	// Validating the bytes says they are a well-formed canonical object. It
+	// does not say they are THIS object's. A forger pairing a real node tree,
+	// taken from a legitimate materialization, with a different but perfectly
+	// valid byte string passes every check above: the tree is real, the bytes
+	// validate, and a consumer reading the tree and one reading the bytes are
+	// told different things by the same value. That was audit finding F-02, and
+	// nothing here could close it while the serialization was undefined —
+	// re-serializing the tree and comparing would have failed on formatting
+	// alone. §8.8.1 made the bytes a function of the tree, which is what makes
+	// this check possible rather than merely desirable.
+	if !bytes.Equal(objectmodel.Canonicalize(root), obj.CanonicalYAML()) {
+		return ErrObjectNotBound
 	}
 	// A real module would act here. What matters for the spec is what it can
 	// no longer be handed: INV-031(a)-(g) are all eliminated upstream, and

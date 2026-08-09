@@ -289,3 +289,38 @@ fn the_model_version_travels_with_the_hand_off_not_inside_the_object() {
     assert!(!yaml.contains("cic:"), "the version leaked into the object");
     assert!(!yaml.is_empty());
 }
+
+/// The property the Go boundary has to check, and this one gets for free.
+///
+/// Audit finding F-02 is a `CanonicalObject` whose node tree and whose bytes
+/// describe different objects: a consumer reading the tree and one reading the
+/// serialization are told different things by the same value. In Go the type is
+/// an interface, another package can satisfy it by embedding, and the boundary
+/// has to re-serialize the tree and compare — which only became possible when
+/// §8.8.1 made the bytes a function of the tree.
+///
+/// Here `CanonicalObject` is a struct with private fields and `materialize` is
+/// its only constructor, so there is no way to pair a real tree with foreign
+/// bytes: the forgery does not compile rather than being rejected at runtime.
+/// What is left to check is that the two views agree on objects this crate does
+/// produce, which is the same property from the other side.
+#[test]
+fn the_tree_and_the_bytes_describe_the_same_object() {
+    for vector in [
+        "materialization/001_origin_yaml",
+        "materialization/006_closure_opaque",
+        "materialization/008_normalize_list",
+        "materialization/012_discriminator_payload_keywords",
+        "materialization/013_access_inherit_injection",
+    ] {
+        let obj = object(vector);
+        let again = cic_object_model::canonical::to_yaml(obj.root());
+        assert_eq!(
+            obj.canonical_yaml(),
+            again.as_slice(),
+            "{vector}: re-serializing the tree does not reproduce the object's bytes\n--- again ---\n{}\n--- object ---\n{}",
+            String::from_utf8_lossy(&again),
+            String::from_utf8_lossy(obj.canonical_yaml())
+        );
+    }
+}
