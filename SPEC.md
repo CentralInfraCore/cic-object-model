@@ -1,10 +1,12 @@
 # CIC Object Model — Normative Specification
 
 **Model version: 0.2**
-**Status: normative, one implementation.** The Go reference implementation in
-`go/` executes the conformance corpus. 0.2 is the revision that follows from
-running it: eighteen defects were found by implementing 0.1, and the ones that
-made 0.1 unsatisfiable are fixed here. See `docs/spec-defects.md` for the full
+**Status: normative, two implementations.** The reference implementations in
+`go/` and `rust/` both execute the conformance corpus and produce byte-identical
+canonical objects. 0.2 is the revision that follows from running it: eighteen
+defects were found by implementing 0.1, and the ones that made 0.1
+unsatisfiable are fixed here. The second implementation, and two external
+reviews, found the rest. See `docs/spec-defects.md` for the full
 list and [Conformance](#10-conformance) for what corpus status means for the
 reader.
 
@@ -1021,12 +1023,12 @@ if an invariant claims a vector that does not exist or a vector claims an
 invariant that does not exist. The check verifies the *mapping*, not
 conformance results.
 
-**Status of the corpus as of model 0.2: executed by one implementation.** The Go
-reference implementation runs every vector; the Rust implementation does not
-exist yet. `make conformance` fails rather than passing vacuously when no
-implementation is present. A vector that has never run is a hypothesis, not
-evidence — and until a second implementation runs this corpus, agreement between
-implementations is still an untested claim.
+**Status of the corpus as of model 0.2: executed by both implementations.**
+`go/` and `rust/` each run the whole corpus and produce byte-identical
+canonical objects. What that establishes is that they agree on THESE
+vectors — a bound worth stating, because for thirty-one of them the corpus
+contained no wrong-typed input at all, and the two disagreed on every such
+case an external review constructed.
 
 ---
 

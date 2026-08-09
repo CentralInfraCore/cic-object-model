@@ -1,10 +1,9 @@
 # Makefile for cic-object-model — the normative CIC object model spec,
 # its conformance vectors, and the Go + Rust reference implementations.
 #
-# mk/rust.mk is NOT present yet: the Rust gate is extracted from
-# CIC-Relay/Makefile by the cic-object-model-rust sub-job. See
-# docs/rust-gate-extraction.md for the line-referenced recipe. Until that
-# job lands, `make rust` is unavailable and CI runs the Go gate only.
+# mk/rust.mk is present: the Rust gate was extracted from CIC-Relay/Makefile
+# per docs/rust-gate-extraction.md. `make rust` runs it, and mk/ci.mk runs both
+# implementations' gates.
 
 # ---- Includes ----
 include mk/infra.mk
@@ -13,7 +12,7 @@ include mk/ci.mk
 -include mk/rust.mk
 
 # ---- Phony ----
-.PHONY: verify verify.fuzz verify.mutate release.subject release.verify review.check all help validate release test up down shell build fmt lint check typecheck repo.init manifest-verify manifest-update docs.link-check conformance
+.PHONY: verify verify.fuzz verify.mutate release.subject release.verify review.check status-claims all help validate release test up down shell build fmt lint check typecheck repo.init manifest-verify manifest-update docs.link-check conformance
 
 # Default to showing help
 all: help
@@ -167,6 +166,10 @@ manifest-update: ##manifest-update
 # =============================================================================
 # Documentation
 # =============================================================================
+
+status-claims: ## Verify the documentation's counts and status match the tree
+	@echo "--- Status claims ---"
+	@docker compose exec -T builder python tools/check_status_claims.py
 
 docs.link-check: ## Verify internal markdown links in docs/ and READMEs resolve
 	@echo "--- Checking internal documentation links ---"

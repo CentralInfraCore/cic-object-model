@@ -8,7 +8,7 @@ model, and everything else here exists to keep that document honest.
 
 ```mermaid
 graph TD
-    S[SPEC.md — 34 numbered invariants] --> V[conformance/ — 27 vectors]
+    S[SPEC.md — 46 numbered invariants] --> V[conformance/ — 37 vectors]
     S --> M[docs/spec-vector-map.md]
     V --> G[go/ — reference implementation]
     V --> R[rust/ — reference implementation]

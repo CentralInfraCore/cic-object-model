@@ -4,10 +4,15 @@ These vectors are the falsifiable part of [`SPEC.md`](../SPEC.md). A normative
 sentence with no vector behind it is an assertion; a vector is a test that can
 fail.
 
-**Status: written, never executed.** No implementation exists in this
-repository yet. Nothing here has passed — it has been authored. See
-[`../docs/spec-vector-map.md`](../docs/spec-vector-map.md) for the full
+**Status: executed by both implementations.** `go/` and `rust/` each run the
+whole corpus, compare their output to `expected.yaml` byte for byte, and agree.
+See [`../docs/spec-vector-map.md`](../docs/spec-vector-map.md) for the full
 invariant coverage picture.
+
+What that establishes is bounded, and the bound is the interesting part: it says
+the two agree on these vectors. It said nothing about wrong-typed input until
+the corpus acquired some, because for thirty-one vectors it had none — and the
+two implementations disagreed on every such case an external review tried.
 
 ## Format
 

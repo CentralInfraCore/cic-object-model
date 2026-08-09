@@ -7,10 +7,14 @@ covered nor explicitly excused is a gap, and
 [`../tools/check_spec_vectors.py`](../tools/check_spec_vectors.py) fails the
 build when one appears.
 
-**This map records coverage, not results.** As of model 0.2 the Go reference
-implementation executes the corpus; the Rust implementation does not exist yet.
-A vector that has run in one implementation is evidence about that
-implementation. Agreement *between* implementations is still an untested claim.
+**This map records coverage, not results.** Both implementations execute the
+corpus and agree byte for byte on every vector in it.
+
+A vector that has run is evidence about the vector. It is not evidence about an
+invariant beyond what the vector states, and this map's own history is the
+argument: INV-013 says "exactly four forms" and was covered by four vectors, one
+per form, every one of them positive — so "these four are accepted" was tested
+for months and "nothing else is" never was.
 
 ## Coverage
 
