@@ -12,7 +12,7 @@ include mk/ci.mk
 -include mk/rust.mk
 
 # ---- Phony ----
-.PHONY: verify verify.fuzz verify.mutate release.subject release.verify review.check status-claims all help validate release test up down shell build fmt lint check typecheck repo.init manifest-verify manifest-update docs.link-check conformance
+.PHONY: verify verify.fuzz verify.mutate release.subject release.verify review.check status-claims review-ledger all help validate release test up down shell build fmt lint check typecheck repo.init manifest-verify manifest-update docs.link-check conformance
 
 # Default to showing help
 all: help
@@ -167,6 +167,10 @@ manifest-update: ##manifest-update
 # Documentation
 # =============================================================================
 
+review-ledger: ## Verify every review finding is accounted for (INV-046)
+	@echo "--- Review ledger ---"
+	@docker compose exec -T builder python tools/check_review_ledger.py
+
 status-claims: ## Verify the documentation's counts and status match the tree
 	@echo "--- Status claims ---"
 	@docker compose exec -T builder python tools/check_status_claims.py
@@ -188,7 +192,7 @@ conformance: ## Run the conformance corpus against every present implementation
 	@echo "--- Running conformance vectors ---"
 	@ran=0; \
 	if [ -f go/go.mod ]; then $(MAKE) golang.test && ran=1; fi; \
-	if [ -f rust/Cargo.toml ] && [ -f mk/rust.mk ]; then $(MAKE) test-rust && ran=1; fi; \
+	if [ -f rust/Cargo.toml ] && [ -f mk/rust.mk ]; then $(MAKE) rust.test && ran=1; fi; \
 	if [ "$$ran" -eq 0 ]; then \
 		echo "NO IMPLEMENTATION PRESENT — 0 vectors executed."; \
 		echo "The vector corpus exists but is unverified until go/ or rust/ lands."; \

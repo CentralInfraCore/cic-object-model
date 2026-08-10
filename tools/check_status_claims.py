@@ -55,6 +55,19 @@ def measured(root: Path) -> dict[str, int]:
 
     vectors = len(list((root / "conformance").glob("*/*/meta.yaml")))
 
+    # How many invariants a VECTOR claims, which is the definition
+    # check_spec_vectors.py uses when it reports coverage. Counting the map's
+    # table instead gave a different number for the same fact — two tools
+    # disagreeing about one thing, which is the defect this file exists to
+    # catch, committed while catching it.
+    covered = set()
+    for meta in (root / "conformance").glob("*/*/meta.yaml"):
+        text = meta.read_text(encoding="utf-8")
+        block = re.search(r"^invariants:\s*\[([^\]]*)\]", text, re.M)
+        if block:
+            covered.update(re.findall(r"INV-\d+", block.group(1)))
+    covered &= set(re.findall(r"^\| (INV-\d+) \|", index, re.M))
+
     # An implementation counts when it has BOTH sources and a conformance
     # runner. A directory with a .gitkeep is not an implementation, and one
     # that cannot run the corpus is not evidence about the model.
@@ -66,14 +79,14 @@ def measured(root: Path) -> dict[str, int]:
         has_sources = any((root / lang).rglob("*.go")) or any(
             (root / lang).rglob("*.rs")
         )
-        has_runner = (root / runner).exists()
-        if has_sources and has_runner:
+        if has_sources and (root / runner).exists():
             implementations += 1
 
     return {
         "invariants": invariants,
         "vectors": vectors,
         "implementations": implementations,
+        "covered": len(covered),
     }
 
 
@@ -88,6 +101,18 @@ NUMBER_CLAIMS: list[tuple[str, str, str]] = [
     ("README.md", r"pass all (\d+) vectors", "vectors"),
     ("docs/en/architecture.md", r"SPEC\.md — (\d+) numbered invariants", "invariants"),
     ("docs/en/architecture.md", r"conformance/ — (\d+) vectors", "vectors"),
+    # The sentence that said "32 of 34" for months. Both halves are checked, so
+    # neither can drift alone.
+    (
+        "docs/spec-vector-map.md",
+        r"\*\*(\d+) of the \d+ invariants are vector-covered",
+        "covered",
+    ),
+    (
+        "docs/spec-vector-map.md",
+        r"\*\*\d+ of the (\d+) invariants are vector-covered",
+        "invariants",
+    ),
     # docs/hu/architecture.md states no counts, deliberately: it describes the
     # layers and points at the register. A document that does not make a
     # numeric claim has nothing here to go stale, which is the cheapest fix

@@ -21,7 +21,47 @@ what remains is here.
 
 ---
 
+## Where the trust boundary is
+
+Three of the decisions below turn on this, and it was not written down
+anywhere, so it is written down here first.
+
+`Materialize` **is** the pre-entry step. It validates authoring input against
+the schema descriptor and injects the declared defaults, marked — the mark is
+`origin`: `[schema]` for a value the model supplied, `[yaml]` for one the author
+wrote. What crosses the module boundary afterwards is the complete extracted
+set, which is what INV-031's seven prohibitions describe.
+
+Two consequences that read the wrong way without it:
+
+- **`Materialize` and `ValidateCanonicalDocument` are the untrusted edge.** The
+  schema validation is not something that happened before them; it is what they
+  are. So the alias bomb and the quadratic scan were real threats at exactly
+  that point, and resource budgets belong there — not at the module boundary,
+  where the set is already complete.
+- **A module never sees an incomplete object.** So "a declared position with no
+  value" is not a state the boundary can be in. It is a pipeline failure, and
+  D-2 follows from that rather than from a preference for strictness.
+
+---
+
 ## D-1 — Does `scalar_type` constrain a value, or describe it?
+
+> **DECIDED: constraining, with no coercion.** Part of D-5 rather than separate
+> work, and a prerequisite for it.
+>
+> Not for symmetry. A contract cannot be evaluated without a type: `range: [1,
+> 100]` against the string `"50"` has no answer. If `scalar_type` stays
+> descriptive, the contract evaluator invents its own typing and the model has
+> TWO type systems — one declared and unchecked, one implicit — and when they
+> disagree the rejection arrives at the wrong stage naming the wrong thing.
+>
+> No coercion: `9000` is an integer, `"9000"` is a string, and
+> `scalar_type: integer` refuses the second. Silent coercion in a provenance
+> model is the same failure class as leaving `on`/`off` unquoted.
+>
+> Sequencing: `scalar_type` enforcement lands BEFORE contract evaluation. The
+> other order does not build.
 
 **Measured:** neither implementation reads `scalar_type` during validation. It
 is parsed, carried, and emitted into the `shape` primitive, and nothing compares
@@ -43,6 +83,28 @@ question in an emitter is how a specification acquires rules nobody wrote.
 ---
 
 ## D-2 — What happens to a declared position that is absent, optional, and has no default?
+
+> **DECIDED: rejection.** Every declared position has a value or a default.
+>
+> This is not a preference for strictness; it follows from the trust boundary
+> above. A complete extracted set crosses into a module, so "a declared position
+> with no value" is not a state that can exist there. Either the pipeline
+> produces a value or it cannot produce the set, and the second is an error.
+>
+> **And `required` keeps a meaning, a sharper one.** It stops being about
+> whether a value exists on the output — one always does — and becomes about
+> where it may come from:
+>
+>   `required: true` = the INSTANCE must supply it; a schema default does not
+>   satisfy it.
+>
+> Which is expressible in the object itself: a required member may not carry
+> `origin: [schema]`. The keyword is not removed.
+>
+> Refused: **omit** (Go's behaviour) leaves a reader unable to tell "not
+> configured" from "not declared" without the schema. **Null** (Rust's) makes
+> every optional position a node holding a value nobody wrote, and `origin` has
+> no term that is true of it.
 
 **Measured:** Go removes the node. Rust materializes a scalar as `null`, a list
 as empty, and walks object children. `docs/spec-defects.md` SD-007 already
@@ -104,6 +166,22 @@ authored a value; the author did not write this one.
 
 ## D-5 — Is `access` a grammar or a shape?
 
+> **DECIDED: enforce, and enforce `contract` with it.** The document argued
+> these are one question; they are answered as one.
+>
+> `access` gets a closed member set and typed values in §6.4. `contract` gets an
+> evaluator — the primitive §8.7 already requires to be enforced and which
+> nothing has ever read. This is the largest single piece of work in the
+> repository: a grammar, an evaluator, both implementations, and a vector family
+> for each.
+>
+> Refused: declaring both unenforced was cheap and honest, and would have left
+> two primitives that describe guarantees the model does not provide. The
+> current state — a MUST in the specification with no code behind it — is worse
+> than either, because it looks like a guarantee.
+>
+> Depends on D-1, which is the type foundation a contract evaluates against.
+
 **Measured:** the operations are checked (`read`, `modify`, and `write` is
 refused). Nothing else is: `inherit` may be any value, an operation block may
 carry any member, and `rules` may be anything at all.
@@ -125,6 +203,26 @@ checks". They should be decided together or the answer will not be consistent.
 ---
 
 ## D-6 — What characters may a node name contain?
+
+> **DECIDED: restrict declared names; opaque payload keys are exempt and not
+> addressable.**
+>
+> Schema-declared names take a declared character set, and a schema declaring
+> `a.b` becomes a schema-load rejection. Because names arrive from a compiled,
+> validated schema descriptor, the restriction is enforceable upstream too and
+> the model only has to state it.
+>
+> An opaque payload's keys are chosen by a foreign system, not by the schema,
+> so they stay unrestricted — and §2.5 will say that INV-040 covers the
+> MODEL's nodes, not the keys of data carried verbatim. Nothing references into
+> an opaque blob: not evidence, not policy. That is what makes the exemption
+> free rather than a hole.
+>
+> Refused: **escape in the address grammar** keeps every name addressable and
+> costs a second byte-level rule to pin and reconcile across two
+> implementations — §8.8.1 took a day. **Restricting opaque keys too** would
+> make §4's "carried verbatim" false for a config blob the model does not even
+> interpret.
 
 **Measured:** a child named `a.b` materializes. `Path()` returns
 `$.values.a.b`, and `Get` splits it into two segments, so the address does not
@@ -268,6 +366,76 @@ for a different kind of repository.
 **Related:** audit claim F-02.
 
 ---
+
+## D-13 — Is `make ci` the gate, or part of it?
+
+**Measured:** `README.md` says a green badge and a green local run mean the same
+thing. They do not. CI adds `review.check` for pull requests into `main`, which
+`make ci` deliberately does not run. And the environment is not fixed:
+`Dockerfile` builds `FROM python:3.11-slim` — a moving tag — installs apt
+packages without versions, and downloads the Go toolchain over the network with
+no checksum in the repository. `mk/rust.mk` installs `cargo-llvm-cov` and
+`cargo-deny` unpinned at run time. The Rust base image is the one thing pinned
+by digest.
+
+**Accident on both halves.** The review step was added deliberately and the
+README sentence was not revisited; the base image and toolchain were inherited.
+
+| option | cost |
+|---|---|
+| **Say "shared core gate"** and add a local target that runs what a main-PR runs | free, and honest; the equivalence claim shrinks to what is true |
+| **Pin everything** — digest the Python base, version the apt set, checksum the Go tarball, pin the cargo tools | a reproducible build; every pin becomes something to update |
+| **Both** | the only combination under which "the same pipeline" is a statement about bytes rather than about command names |
+
+**Blocks:** any argument that a green CI run is evidence about a specific tree
+rather than about a tree built from whatever the network served that day.
+**Related:** audit claim F-08.
+
+---
+
+## D-14 — What does `TestVersionIdentity` promise?
+
+**Measured:** `README.md` says it holds *every other declaration* in the
+repository to `SPEC.md`. It checks two Go constants, two fields of
+`spec/index.yaml`, the major and minor of `project.yaml`, and every vector
+schema. It contains **zero** references to `rust/`, which has its own
+`MODEL_VERSION` and its own `Cargo.toml` version. Those agree today; nothing
+makes them.
+
+**Accident**, and a familiar one: the test was written when there was one
+implementation, and its claim was true then.
+
+| option | cost |
+|---|---|
+| **Enumerate the Rust declarations too** | one edit; the list grows by hand every time a declaration site appears, which is the failure mode the test exists to prevent, one level up |
+| **Discover declaration sites** — scan for a registered pattern across the tree | the claim becomes true rather than maintained; needs a convention for what counts as a declaration |
+| **Narrow the README** — name what the test checks | free, and leaves the Rust side unguarded by design rather than by oversight |
+
+**Related:** audit claim F-10.
+
+---
+
+## Status
+
+**Four decided, ten open.**
+
+| decided | choice |
+|---|---|
+| D-1 | `scalar_type` constrains, no coercion — part of D-5 |
+| D-2 | rejection; `required: true` means the instance must supply it |
+| D-5 | enforce `access` AND `contract` |
+| D-6 | restrict declared names; opaque keys exempt and not addressable |
+
+D-1, D-2 and D-6 are cheap to implement and change both implementations. D-5 is
+a sprint: a grammar, a contract evaluator, two implementations, two vector
+families — and D-1 has to land first, because a contract is evaluated against
+a type.
+
+Recommendations exist for the ten still open and are not decisions. D-4
+(`[schema]` for an injected default), D-8 (make the stages and codes normative),
+D-12 (replace the release path) and D-13 (pin the build, narrow the `make ci`
+claim) look to me like they have one defensible answer each; D-3 follows from
+D-5 once the grammar exists; D-7, D-9, D-10, D-11 and D-14 need choosing.
 
 ## How these get decided
 

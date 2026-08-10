@@ -33,6 +33,22 @@ saw it — a false positive in the test written to check this gate.
 An external audit found it by computing both digests. Nothing in the repository
 did.
 
+## The disposition ledger
+
+`<subject>.disposition.md` carries one row per finding: closed, partial, or
+open, and where. `make review-ledger` reconciles it against the findings the
+review threads raise and the decisions in
+[`../docs/pending-decisions.md`](../docs/pending-decisions.md), and fails when
+any of the three disagree.
+
+It exists because the first attempt lost two. The decisions document listed
+twelve; `claim/F-08` and `claim/F-10` had been raised, measured and confirmed,
+and then appeared in no decision and no commit. Nothing compared the list to its
+source, so nothing could say so.
+
+A `partial` row is not a closed one. The count that matters for "is this review
+discharged" counts only `closed`.
+
 ## What is here
 
 Records from the first commissioned review, run as three separate threads
